@@ -4,7 +4,7 @@ Public reference layer for **cyclical market analysis** built around the Matassa
 
 This repository is intentionally **showcase-only**: it shares calibrated reference tables and framework documentation. It does **not** include Pine Script source code, pattern-matching engines, statistical projection modules, or execution logic.
 
-> **Full indicator suite:** [Matassa Completa](https://www.tradingview.com/) on TradingView — **invite-only**.  
+> **Full indicator suite:** [Matassa Completa](https://www.tradingview.com/u/AnDr3HA/) on TradingView ([@AnDr3HA](https://www.tradingview.com/u/AnDr3HA/)) — **invite-only**.  
 > **Execution & terminal:** [Cycle Lab](https://andreafinazzi.com) — private product stack.
 
 ---
@@ -61,7 +61,7 @@ The following remain **closed source** — screenshots may appear under `assets/
 
 ## Request access
 
-- **TradingView (Matassa Completa):** contact via [andreafinazzi.com](https://andreafinazzi.com) or [email](mailto:andrea.finazzi.info@gmail.com)
+- **TradingView (Matassa Completa):** profile [@AnDr3HA](https://www.tradingview.com/u/AnDr3HA/) — request invite via [andreafinazzi.com](https://andreafinazzi.com) or [email](mailto:andrea.finazzi.info@gmail.com)
 - **Cycle Lab terminal:** product waitlist via website
 
 ---

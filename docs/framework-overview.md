@@ -14,7 +14,7 @@
 └───────────────────────────────┬─────────────────────────────┘
                                 │
 ┌───────────────────────────────▼─────────────────────────────┐
-│  Matassa Completa (TradingView — invite-only)               │
+│  Matassa Completa (TradingView [@AnDr3HA](https://www.tradingview.com/u/AnDr3HA/) — invite-only) │
 │  Pivots · centratura · swings · FLD/FEMA · multi-cycle UI   │
 └───────────────────────────────┬─────────────────────────────┘
                                 │
