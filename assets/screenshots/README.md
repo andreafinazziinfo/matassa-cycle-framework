@@ -1,19 +1,12 @@
 # Screenshots
 
-Add TradingView captures here to illustrate private modules **without publishing source code**.
+| File | Module |
+|------|--------|
+| `completa-overview.png` | Matassa Completa — FLD, pivots, cycle bands |
+| `three-cycles.png` | Matassa 3 Cicli — triple cycle overlay |
+| `statistica.png` | Matassa Statistica — heatmap & statistics |
+| `pattern-matching.png` | Matassa Pattern Matching — KNN / DTW matching |
 
-Suggested files (export from TV, blur sensitive settings if needed):
+Referenced from the root [README.md](../../README.md).
 
-| File | Content |
-|------|---------|
-| `completa-overview.png` | Matassa Completa — pivots & overlays |
-| `pattern-matching.png` | Pattern Matching — projection lines |
-| `statistica.png` | Statistica — statistical tables / projections |
-| `model-entry.png` | Model Entry — strategy panel (optional, blur P&L) |
-| `three-cycles.png` | Multi-cycle overlay view |
-
-Reference them in the root `README.md` once added:
-
-```markdown
-![Matassa Completa overview](assets/screenshots/completa-overview.png)
-```
+**Do not add Pine source here** — images only.

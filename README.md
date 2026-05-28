@@ -39,6 +39,34 @@ Raw Hurst-style nominal lengths exist in public literature; **these tables apply
 
 ---
 
+## Visual preview (TradingView — invite-only)
+
+Screenshots only. **No source code** in this repository.
+
+### Matassa Completa
+Full overlay: pivots, centratura, FLD/FEMA, cycle bands, multi-timeframe targets.
+
+<img src="assets/screenshots/completa-overview.png" width="100%" alt="Matassa Completa — BTC 1H with FLD and cycle overlays" />
+
+### Matassa 3 Cicli
+Three synchronized cycle layers (+2 / 0 / −2) on a single chart.
+
+<img src="assets/screenshots/three-cycles.png" width="100%" alt="Matassa 3 Cicli — multi-cycle overlay" />
+
+### Matassa Statistica
+Statistical projections, heatmap distribution, accuracy tables, cycle constraints.
+
+<img src="assets/screenshots/statistica.png" width="100%" alt="Matassa Statistica — heatmap and projection tables" />
+
+### Matassa Pattern Matching
+Historical shape matching (KNN / DTW), similarity ranking, walk-forward backtest panel.
+
+<img src="assets/screenshots/pattern-matching.png" width="100%" alt="Matassa Pattern Matching — KNN matching and WFV backtest" />
+
+> Request full indicator access: [@AnDr3HA on TradingView](https://www.tradingview.com/u/AnDr3HA/)
+
+---
+
 ## Private stack (not in this repo)
 
 The following remain **closed source** — screenshots may appear under `assets/screenshots/` for illustration only:
