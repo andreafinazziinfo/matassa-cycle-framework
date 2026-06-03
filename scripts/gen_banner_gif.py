@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-W, H = 900, 300
+W, H = 1100, 380
 SS = 2
 
 N = 32
@@ -45,11 +45,11 @@ TABLE_HDR = (15, 23, 42)
 TABLE_ROW = (11, 17, 32)
 TABLE_ALT = (14, 21, 38)
 
-PAD = 14
-TOPBAR = 54
-BOTBAR = 22
-TABLE_W = 188
-SPLIT = 0.62
+PAD = 16
+TOPBAR = 56
+BOTBAR = 24
+TABLE_W = 258
+SPLIT = 0.56
 
 # Compact rows from m-1-0x (Ciclo | CRYPTO)
 TABLE_ROWS = [
@@ -129,62 +129,66 @@ def _grad_color(u: float):
     return lerp(stops[i], stops[i + 1], fr)
 
 
-def _grad_title(img: Image.Image, xy, text, font, phase: float, stroke=True) -> Image.Image:
+def _grad_title(img: Image.Image, xy, text, font, phase: float, soft_glow: bool = False) -> Image.Image:
+    """Gradient fill text; sharp by default (no blur — GIF quantize was muddy)."""
     probe = ImageDraw.Draw(img)
     x0, y0, x1, y1 = probe.textbbox(xy, text, font=font)
     tw, th = max(1, x1 - x0), max(1, y1 - y0)
 
     mask = Image.new("L", img.size, 0)
     md = ImageDraw.Draw(mask)
-    if stroke:
-        for ox, oy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
-            md.text((xy[0] + ox * SS, xy[1] + oy * SS), text, font=font, fill=200)
+    for dx, dy in ((-1, -1), (-1, 1), (1, -1), (1, 1), (-1, 0), (1, 0), (0, -1), (0, 1)):
+        md.text((xy[0] + dx * SS, xy[1] + dy * SS), text, font=font, fill=220)
     md.text(xy, text, font=font, fill=255)
 
     strip = Image.new("RGB", (tw, 1))
     sp = strip.load()
     for x in range(tw):
         sp[x, 0] = _grad_color(x / max(1, tw) + phase)
-    strip = strip.resize((tw, th))
+    strip = strip.resize((tw, th), Image.Resampling.NEAREST)
 
     layer = Image.new("RGB", img.size, (0, 0, 0))
     layer.paste(strip, (x0, y0))
 
-    glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    glow.paste(layer.convert("RGBA"), (0, 0), mask)
-    glow = glow.filter(ImageFilter.GaussianBlur(4 * SS))
-
-    out = Image.alpha_composite(img.convert("RGBA"), glow)
+    out = img.convert("RGBA")
+    stroke = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    sd = ImageDraw.Draw(stroke)
+    for dx, dy in ((-1, -1), (-1, 1), (1, -1), (1, 1), (-1, 0), (1, 0), (0, -1), (0, 1)):
+        sd.text((xy[0] + dx * SS, xy[1] + dy * SS), text, font=font, fill=(0, 0, 0, 255))
+    out = Image.alpha_composite(out, stroke)
+    if soft_glow:
+        glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+        glow.paste(layer.convert("RGBA"), (0, 0), mask)
+        glow = glow.filter(ImageFilter.GaussianBlur(2 * SS))
+        out = Image.alpha_composite(out, glow)
     out.paste(layer, (0, 0), mask)
     return out.convert("RGB")
 
 
 def _draw_table(d, box, fonts, alpha: float = 1.0):
     x0, y0, x1, y1 = box
-    if alpha < 1:
-        overlay = Image.new("RGBA", (int(x1 - x0), int(y1 - y0)), (6, 9, 17, int(220 * alpha)))
-        # table drawn on main image via rectangles only
-    d.rounded_rectangle(box, radius=4 * SS, fill=TABLE_HDR, outline=lerp(DIM, MINT, 0.35 * alpha), width=SS)
-    pad_x = x0 + 8 * SS
-    y = y0 + 8 * SS
+    d.rounded_rectangle(box, radius=5 * SS, fill=TABLE_HDR, outline=lerp(DIM, MINT, 0.4 * alpha), width=max(1, SS))
+    pad_x = x0 + 12 * SS
+    y = y0 + 12 * SS
     d.text((pad_x, y), "T-SCALE", font=fonts["tbl_title"], fill=MINT)
-    y += 16 * SS
-    d.text((pad_x, y), "m-1-0x · CRYPTO", font=fonts["tbl_sub"], fill=DIM)
-    y += 14 * SS
-    d.line([(x0 + 6 * SS, y), (x1 - 6 * SS, y)], fill=GRID, width=SS)
-    y += 8 * SS
-
-    col_w = (x1 - x0 - 16 * SS) / 2
-    d.text((pad_x, y), "Ciclo", font=fonts["tbl_hdr"], fill=TXT)
-    d.text((pad_x + col_w, y), "Durata", font=fonts["tbl_hdr"], fill=CYAN)
+    y += 22 * SS
+    d.text((pad_x, y), "m-1-0x · CRYPTO", font=fonts["tbl_sub"], fill=TXT)
+    y += 20 * SS
+    d.line([(x0 + 8 * SS, y), (x1 - 8 * SS, y)], fill=GRID, width=SS)
     y += 12 * SS
 
+    col_w = (x1 - x0 - 24 * SS) / 2
+    d.text((pad_x, y), "Ciclo", font=fonts["tbl_hdr"], fill=WHITE)
+    d.text((pad_x + col_w, y), "Durata", font=fonts["tbl_hdr"], fill=CYAN)
+    y += 18 * SS
+
+    row_h = 20 * SS
     for i, (ciclo, dur) in enumerate(TABLE_ROWS):
         bg = TABLE_ALT if i % 2 else TABLE_ROW
-        d.rectangle([x0 + 6 * SS, y - 2 * SS, x1 - 6 * SS, y + 13 * SS], fill=bg)
+        d.rectangle([x0 + 8 * SS, y - 3 * SS, x1 - 8 * SS, y + row_h - 4 * SS], fill=bg)
         d.text((pad_x, y), ciclo, font=fonts["tbl_cell"], fill=WHITE if ciclo == "T" else TXT)
-        d.text((pad_x + col_w, y), dur, font=fonts["tbl_cell"], fill=CYAN if ciclo == "T" else TXT)
-        y += 15 * SS
+        d.text((pad_x + col_w, y), dur, font=fonts["tbl_cell"], fill=CYAN if ciclo == "T" else WHITE)
+        y += row_h
 
 
 def _chip(d, cx, cy, text, col, font):
@@ -233,8 +237,8 @@ def _intro_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
     w2 = int(d.textlength(line2, font=f2))
     cx = W * SS // 2
     cy = H * SS // 2 - 20 * SS
-    img = _grad_title(img, (cx - w1 // 2, cy - 36 * SS), line1, f1, phase)
-    img = _grad_title(img, (cx - w2 // 2, cy + 4 * SS), line2, f2, phase + 0.15)
+    img = _grad_title(img, (cx - w1 // 2, cy - 36 * SS), line1, f1, phase, soft_glow=True)
+    img = _grad_title(img, (cx - w2 // 2, cy + 4 * SS), line2, f2, phase + 0.15, soft_glow=True)
     d = ImageDraw.Draw(img)
     sub = "T-scale reference · cyclical analysis"
     sw = int(d.textlength(sub, font=fonts["intro_sub"]))
@@ -327,20 +331,16 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
         d.line(cyc_pts[:hist_end], fill=MINT, width=max(2, SS), joint="curve")
         dashed(d, fld_pts[:hist_end], fill=CYAN, width=max(2, SS), dash=6, gap=3)
 
-    # projection: single dashed path line (no hollow candles)
+    # projection: solid white path (full line, clearly distinct)
     if proj_revealed > 0:
         p_start = max(0, hist_end - 1)
         if len(price_pts) > p_start + 1:
-            dashed(
-                d,
+            d.line(
                 price_pts[p_start:],
-                fill=lerp(CYAN, WHITE, 0.4),
-                width=max(2, SS),
-                dash=6,
-                gap=4,
+                fill=WHITE,
+                width=max(3, SS),
+                joint="curve",
             )
-        if len(cyc_pts) > p_start + 1:
-            dashed(d, cyc_pts[p_start:], fill=lerp(MINT, DIM, 0.25), width=max(1, SS), dash=5, gap=5)
 
     def place_pivots(upto_i: int, projected: bool):
         for center, kind in _pivot_centers():
@@ -402,14 +402,15 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
     slow_phase = f * 0.004
     img = _grad_title(
         img,
-        (PAD * SS, 8 * SS),
+        (PAD * SS, 10 * SS),
         "MATASSA CYCLE FRAMEWORK",
         fonts["title_bar"],
         slow_phase,
+        soft_glow=False,
     )
 
     d = ImageDraw.Draw(img)
-    legend = [("CICLO", MINT), ("FLD", CYAN), ("PIVOT", UP), ("PROIEZ.", DIM)]
+    legend = [("CICLO", MINT), ("FLD", CYAN), ("PIVOT", UP), ("PROIEZ.", WHITE)]
     lx = table_x0 - 12 * SS
     for label, col in reversed(legend):
         tw = int(d.textlength(label, font=fonts["legend"]))
@@ -443,22 +444,22 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
 
 def main() -> None:
     fonts = {
-        "intro_l1": fnt("ariblk.ttf", 34),
-        "intro_l2": fnt("ariblk.ttf", 22),
-        "intro_sub": fnt("consola.ttf", 11),
-        "title_bar": fnt("ariblk.ttf", 20),
-        "legend": fnt("consolab.ttf", 8),
-        "pivot": fnt("consolab.ttf", 8),
-        "foot": fnt("consola.ttf", 9),
-        "tbl_title": fnt("arialbd.ttf", 10),
-        "tbl_sub": fnt("consola.ttf", 7),
-        "tbl_hdr": fnt("consolab.ttf", 7),
-        "tbl_cell": fnt("consola.ttf", 8),
+        "intro_l1": fnt("ariblk.ttf", 38),
+        "intro_l2": fnt("ariblk.ttf", 24),
+        "intro_sub": fnt("consola.ttf", 12),
+        "title_bar": fnt("ariblk.ttf", 22),
+        "legend": fnt("consolab.ttf", 9),
+        "pivot": fnt("consolab.ttf", 9),
+        "foot": fnt("consola.ttf", 10),
+        "tbl_title": fnt("arialbd.ttf", 14),
+        "tbl_sub": fnt("consolab.ttf", 10),
+        "tbl_hdr": fnt("consolab.ttf", 11),
+        "tbl_cell": fnt("consolab.ttf", 11),
     }
     bg = bg_gradient()
     frames = [build_frame(f, bg, fonts) for f in range(FRAMES)]
 
-    pal = frames[-1].convert("RGB").quantize(colors=128, method=Image.MEDIANCUT, dither=Image.NONE)
+    pal = frames[-1].convert("RGB").quantize(colors=160, method=Image.MEDIANCUT, dither=Image.NONE)
     quant = [fr.convert("RGB").quantize(palette=pal, dither=Image.NONE) for fr in frames]
 
     durations = [DURATION_MS] * FRAMES
