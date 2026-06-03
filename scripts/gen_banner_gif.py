@@ -1,11 +1,10 @@
-"""Generate assets/banner.gif — a Matassa-style indicator that draws itself.
+"""Generate assets/banner.gif — Matassa-style chart that draws itself.
 
-GitHub strips SVG animation, so the banner is a GIF. The chart prints one candle
-at a time (slow, readable), overlays the cycle wave (centratura) and the FLD
-(azure), marks the true swing highs/lows with pivot labels, then projects the
-next cycle forward with target boxes — mirroring the real indicator.
-
-Rendered at 2x then downscaled (LANCZOS) and quantized for a small file.
+- Large intro title with slow color shift, then persistent top title
+- One candle every few frames (slow)
+- FLD in bright cyan
+- Projection zone: dashed lines only (no hollow candles)
+- T-scale reference table panel (like TradingView screenshots)
 """
 from __future__ import annotations
 
@@ -14,18 +13,19 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-W, H = 850, 280
+W, H = 900, 300
 SS = 2
 
-N = 36                # solid candles (history)
-PROJC = 12            # projected candles
-BUILD_HOLD = 3        # frames between candles is implicit; we reveal 1/ frame
-PROJ_FRAMES = 14      # frames to animate the projection
-HOLD = 16             # frames holding the finished frame
-FRAMES = N + PROJ_FRAMES + HOLD
-DURATION_MS = 130     # slow, readable
+N = 32
+PROJC = 10
+TITLE_INTRO = 14
+CANDLE_FRAMES = 4
+PROJ_FRAMES = 18
+HOLD = 14
+FRAMES = TITLE_INTRO + N * CANDLE_FRAMES + PROJ_FRAMES + HOLD
+DURATION_MS = 200
 
-PERIOD = 20.0         # candles per cycle  -> maxima at 5,25,45 ; minima at 15,35
+PERIOD = 20.0
 
 OUT = Path(__file__).resolve().parents[1] / "assets" / "banner.gif"
 FONTS = Path("C:/Windows/Fonts")
@@ -34,18 +34,32 @@ BG_TOP = (8, 11, 21)
 BG_BOT = (12, 18, 36)
 GRID = (23, 31, 51)
 MINT = (9, 241, 184)
-AZURE = (56, 189, 248)     # FLD
-VIOLET = (139, 92, 246)    # title accent
+CYAN = (0, 229, 255)       # FLD — bright cyan
+VIOLET = (139, 92, 246)
 UP = (34, 197, 94)
 DOWN = (239, 68, 68)
 TXT = (148, 163, 184)
 DIM = (71, 85, 105)
 WHITE = (236, 240, 248)
+TABLE_HDR = (15, 23, 42)
+TABLE_ROW = (11, 17, 32)
+TABLE_ALT = (14, 21, 38)
 
-PAD = 18
-TOPBAR = 46
-BOTBAR = 26
-SPLIT = 0.70           # history | projection divider (fraction of width)
+PAD = 14
+TOPBAR = 54
+BOTBAR = 22
+TABLE_W = 188
+SPLIT = 0.62
+
+# Compact rows from m-1-0x (Ciclo | CRYPTO)
+TABLE_ROWS = [
+    ("T+2", "45g 12h"),
+    ("T+1", "22g 18h"),
+    ("T", "11g 9h"),
+    ("T-1", "5g 16h"),
+    ("T-2", "2g 20h"),
+    ("T-3", "1g 10h"),
+]
 
 
 def fnt(name: str, size: int) -> ImageFont.FreeTypeFont:
@@ -65,7 +79,6 @@ def cyc(i: float) -> float:
 
 
 def fld(i: float) -> float:
-    # cycle displaced half a period (classic FLD)
     return trend(i) + 0.92 * math.sin(2 * math.pi * (i - PERIOD / 2) / PERIOD)
 
 
@@ -97,179 +110,101 @@ def bg_gradient() -> Image.Image:
     return img
 
 
-def dashed(d, pts, fill, width, dash=4, gap=4):
+def dashed(d, pts, fill, width, dash=5, gap=4):
     i = 0
     while i < len(pts) - 1:
-        seg = pts[i:i + dash]
+        seg = pts[i : i + dash]
         if len(seg) > 1:
             d.line(seg, fill=fill, width=width, joint="curve")
         i += dash + gap
 
 
-def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
-    img = bg.copy()
-    d = ImageDraw.Draw(img)
+def _grad_color(u: float):
+    stops = [MINT, CYAN, VIOLET, MINT]
+    seg = (u % 1.0) * (len(stops) - 1)
+    i = int(seg)
+    fr = seg - i
+    if i >= len(stops) - 1:
+        i, fr = len(stops) - 2, 1.0
+    return lerp(stops[i], stops[i + 1], fr)
 
-    # layout (in SS px)
-    pad = PAD * SS
-    top = (TOPBAR + 6) * SS
-    bot = (H - BOTBAR - 6) * SS
-    base_y = (top + bot) // 2
-    y_scale = 42 * SS
-    split_x = int(W * SPLIT) * SS
-    spacing = (split_x - pad) / (N - 1)
-    body_w = spacing * 0.55
 
-    def sx(i: float) -> float:
-        return pad + i * spacing
+def _grad_title(img: Image.Image, xy, text, font, phase: float, stroke=True) -> Image.Image:
+    probe = ImageDraw.Draw(img)
+    x0, y0, x1, y1 = probe.textbbox(xy, text, font=font)
+    tw, th = max(1, x1 - x0), max(1, y1 - y0)
 
-    def sy(v: float) -> float:
-        return base_y - v * y_scale
+    mask = Image.new("L", img.size, 0)
+    md = ImageDraw.Draw(mask)
+    if stroke:
+        for ox, oy in ((-2, 0), (2, 0), (0, -2), (0, 2)):
+            md.text((xy[0] + ox * SS, xy[1] + oy * SS), text, font=font, fill=200)
+    md.text(xy, text, font=font, fill=255)
 
-    # reveal state
-    if f < N:
-        revealed = f + 1
-        proj_t = 0.0
-    else:
-        revealed = N
-        proj_t = min(1.0, (f - N) / PROJ_FRAMES)
-    proj_revealed = int(proj_t * PROJC)
+    strip = Image.new("RGB", (tw, 1))
+    sp = strip.load()
+    for x in range(tw):
+        sp[x, 0] = _grad_color(x / max(1, tw) + phase)
+    strip = strip.resize((tw, th))
 
-    # --- grid ---
-    for gx in range(0, W * SS, 30 * SS):
-        d.line([(gx, top - 6 * SS), (gx, bot + 6 * SS)], fill=GRID, width=1)
-    for gy in range(top, bot, 30 * SS):
-        d.line([(0, gy), (W * SS, gy)], fill=GRID, width=1)
-
-    # projection zone tint + divider
-    d.rectangle([split_x, top - 6 * SS, W * SS, bot + 6 * SS], fill=(10, 15, 30))
-    dashed(d, [(split_x, y) for y in range(top, bot, 6 * SS)], fill=DIM, width=SS, dash=1, gap=1)
-
-    # --- glow: cycle wave + FLD up to revealed ---
-    last = revealed - 1 + (proj_t * PROJC)
-    samples = [i * 0.2 for i in range(0, int(last * 5) + 1)]
-    cyc_pts = [(sx(w), sy(cyc(w))) for w in samples]
-    fld_pts = [(sx(w), sy(fld(w))) for w in samples]
+    layer = Image.new("RGB", img.size, (0, 0, 0))
+    layer.paste(strip, (x0, y0))
 
     glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    gd = ImageDraw.Draw(glow)
-    if len(cyc_pts) > 1:
-        gd.line(cyc_pts, fill=(*MINT, 190), width=3 * SS, joint="curve")
+    glow.paste(layer.convert("RGBA"), (0, 0), mask)
     glow = glow.filter(ImageFilter.GaussianBlur(4 * SS))
-    img = Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB")
-    d = ImageDraw.Draw(img)
 
-    # --- candles (history) ---
-    for i in range(revealed):
-        x = sx(i)
-        o, c, hi, lo = ohlc(i)
-        col = UP if c >= o else DOWN
-        d.line([(x, sy(hi)), (x, sy(lo))], fill=col, width=max(1, SS))
-        yo, yc = sy(o), sy(c)
-        a, b = min(yo, yc), max(yo, yc)
-        if b - a < 2 * SS:
-            b = a + 2 * SS
-        d.rectangle([x - body_w / 2, a, x + body_w / 2, b], fill=col)
+    out = Image.alpha_composite(img.convert("RGBA"), glow)
+    out.paste(layer, (0, 0), mask)
+    return out.convert("RGB")
 
-    # --- projected candles (faint, dashed look via outline) ---
-    for j in range(proj_revealed):
-        i = N + j
-        x = sx(i)
-        o, c, hi, lo = ohlc(i)
-        col = UP if c >= o else DOWN
-        d.line([(x, sy(hi)), (x, sy(lo))], fill=lerp((10, 15, 30), col, 0.45), width=max(1, SS))
-        yo, yc = sy(o), sy(c)
-        a, b = min(yo, yc), max(yo, yc)
-        if b - a < 2 * SS:
-            b = a + 2 * SS
-        d.rectangle([x - body_w / 2, a, x + body_w / 2, b],
-                    outline=col, width=max(1, SS))
 
-    # --- cycle (solid mint) and FLD (azure) up to revealed ---
-    split_idx = sum(1 for w in samples if w <= revealed - 1)
-    if split_idx > 1:
-        d.line(cyc_pts[:split_idx], fill=MINT, width=max(1, SS), joint="curve")
-        dashed(d, fld_pts[:split_idx], fill=AZURE, width=max(1, SS), dash=5, gap=4)
-    # projected continuation (dashed)
-    if proj_revealed > 0 and len(cyc_pts) > split_idx:
-        dashed(d, cyc_pts[split_idx:], fill=lerp(MINT, (10, 15, 30), 0.25), width=max(1, SS), dash=4, gap=4)
-        dashed(d, fld_pts[split_idx:], fill=lerp(AZURE, (10, 15, 30), 0.25), width=max(1, SS), dash=4, gap=4)
+def _draw_table(d, box, fonts, alpha: float = 1.0):
+    x0, y0, x1, y1 = box
+    if alpha < 1:
+        overlay = Image.new("RGBA", (int(x1 - x0), int(y1 - y0)), (6, 9, 17, int(220 * alpha)))
+        # table drawn on main image via rectangles only
+    d.rounded_rectangle(box, radius=4 * SS, fill=TABLE_HDR, outline=lerp(DIM, MINT, 0.35 * alpha), width=SS)
+    pad_x = x0 + 8 * SS
+    y = y0 + 8 * SS
+    d.text((pad_x, y), "T-SCALE", font=fonts["tbl_title"], fill=MINT)
+    y += 16 * SS
+    d.text((pad_x, y), "m-1-0x · CRYPTO", font=fonts["tbl_sub"], fill=DIM)
+    y += 14 * SS
+    d.line([(x0 + 6 * SS, y), (x1 - 6 * SS, y)], fill=GRID, width=SS)
+    y += 8 * SS
 
-    # --- pivots on TRUE swing highs/lows ---
-    def place_pivots(upto_i: int, projected: bool):
-        # maxima near k*PERIOD + PERIOD/4 ; minima near k*PERIOD + 3PERIOD/4
-        for center, kind in _pivot_centers():
-            if center > upto_i:
-                continue
-            if (center >= N) != projected:
-                continue
-            if kind == "max":
-                # true local high in window
-                win = [w for w in range(max(0, center - 2), min(N + PROJC, center + 3))]
-                bi = max(win, key=lambda w: ohlc(w)[2])
-                _, _, hi, _ = ohlc(bi)
-                x, y = sx(bi), sy(hi)
-                col = DOWN
-                d.polygon([(x, y - 7 * SS), (x - 5 * SS, y - 15 * SS), (x + 5 * SS, y - 15 * SS)], fill=col)
-                _chip(d, x, y - 31 * SS, "T-1i", col, fonts["pivot"])
-            else:
-                win = [w for w in range(max(0, center - 2), min(N + PROJC, center + 3))]
-                bi = min(win, key=lambda w: ohlc(w)[3])
-                _, _, _, lo = ohlc(bi)
-                x, y = sx(bi), sy(lo)
-                col = UP
-                d.polygon([(x, y + 7 * SS), (x - 5 * SS, y + 15 * SS), (x + 5 * SS, y + 15 * SS)], fill=col)
-                _chip(d, x, y + 19 * SS, "T+1", col, fonts["pivot"])
+    col_w = (x1 - x0 - 16 * SS) / 2
+    d.text((pad_x, y), "Ciclo", font=fonts["tbl_hdr"], fill=TXT)
+    d.text((pad_x + col_w, y), "Durata", font=fonts["tbl_hdr"], fill=CYAN)
+    y += 12 * SS
 
-    place_pivots(revealed - 1, projected=False)
+    for i, (ciclo, dur) in enumerate(TABLE_ROWS):
+        bg = TABLE_ALT if i % 2 else TABLE_ROW
+        d.rectangle([x0 + 6 * SS, y - 2 * SS, x1 - 6 * SS, y + 13 * SS], fill=bg)
+        d.text((pad_x, y), ciclo, font=fonts["tbl_cell"], fill=WHITE if ciclo == "T" else TXT)
+        d.text((pad_x + col_w, y), dur, font=fonts["tbl_cell"], fill=CYAN if ciclo == "T" else TXT)
+        y += 15 * SS
 
-    # --- projection target boxes (appear with projection) ---
-    if proj_revealed > 0:
-        for center, kind in _pivot_centers():
-            if center < N or center > N + proj_revealed:
-                continue
-            x = sx(center)
-            if kind == "max":
-                y = sy(cyc(center))
-                _target(d, x, y, "T-1 H", DOWN, fonts["pivot"])
-            else:
-                y = sy(cyc(center))
-                _target(d, x, y, "T+1 L", UP, fonts["pivot"])
 
-    # --- top bar with animated gradient title ---
-    bar = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    bd = ImageDraw.Draw(bar)
-    bd.rectangle([0, 0, W * SS, TOPBAR * SS], fill=(6, 9, 17, 215))
-    bd.line([(0, TOPBAR * SS), (W * SS, TOPBAR * SS)], fill=(*MINT, 90), width=SS)
-    img = Image.alpha_composite(img.convert("RGBA"), bar).convert("RGB")
+def _chip(d, cx, cy, text, col, font):
+    tw = int(d.textlength(text, font=font))
+    d.rounded_rectangle(
+        [cx - tw / 2 - 4 * SS, cy - 1 * SS, cx + tw / 2 + 4 * SS, cy + 14 * SS],
+        radius=3 * SS,
+        fill=(6, 9, 17),
+        outline=col,
+        width=max(1, SS),
+    )
+    d.text((cx - tw / 2, cy + 1 * SS), text, font=font, fill=col)
 
-    img = _grad_title(img, (PAD * SS, 10 * SS), "MATASSA CYCLE FRAMEWORK",
-                      fonts["title_anim"], f / FRAMES)
 
-    d = ImageDraw.Draw(img)
-    legend = [("CICLO", MINT), ("FLD", AZURE), ("PIVOT", UP), ("PROIEZIONE", DIM)]
-    lx = W * SS - PAD * SS
-    for label, col in reversed(legend):
-        tw = int(d.textlength(label, font=fonts["legend"]))
-        lx -= tw
-        d.text((lx, 17 * SS), label, font=fonts["legend"], fill=col)
-        lx -= 6 * SS
-        d.ellipse([lx - 8 * SS, 19 * SS, lx - 2 * SS, 25 * SS], fill=col)
-        lx -= 16 * SS
-
-    # --- bottom bar ---
-    bb = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    bbd = ImageDraw.Draw(bb)
-    bbd.rectangle([0, (H - BOTBAR) * SS, W * SS, H * SS], fill=(6, 9, 17, 210))
-    img = Image.alpha_composite(img.convert("RGBA"), bb).convert("RGB")
-    d = ImageDraw.Draw(img)
-    d.text((PAD * SS, (H - 19) * SS), "T-scale reference tables  ·  BTC 1H demo",
-           font=fonts["foot"], fill=TXT)
-    rt = "Full suite @AnDr3HA · invite-only"
-    d.text((W * SS - PAD * SS - int(d.textlength(rt, font=fonts["foot"])), (H - 19) * SS),
-           rt, font=fonts["foot"], fill=DIM)
-
-    return img.resize((W, H), Image.LANCZOS)
+def _target(d, cx, cy, text, col, font):
+    r = 6 * SS
+    d.line([(cx - r, cy), (cx + r, cy)], fill=col, width=SS)
+    d.line([(cx, cy - r), (cx, cy + r)], fill=col, width=SS)
+    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=col, width=max(1, SS))
+    _chip(d, cx, cy - 24 * SS if col == DOWN else cy + 12 * SS, text, col, font)
 
 
 def _pivot_centers():
@@ -286,81 +221,261 @@ def _pivot_centers():
     return out
 
 
-def _grad_color(u: float):
-    """Flowing color across mint -> azure -> violet -> mint (seamless)."""
-    stops = [MINT, AZURE, VIOLET, MINT]
-    seg = (u % 1.0) * (len(stops) - 1)
-    i = int(seg)
-    fr = seg - i
-    if i >= len(stops) - 1:
-        i, fr = len(stops) - 2, 1.0
-    return lerp(stops[i], stops[i + 1], fr)
+def _intro_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
+    img = bg.copy()
+    d = ImageDraw.Draw(img)
+    d.rectangle([0, 0, W * SS, H * SS], fill=(5, 8, 16))
+    phase = f * 0.012
+    line1 = "MATASSA"
+    line2 = "CYCLE FRAMEWORK"
+    f1, f2 = fonts["intro_l1"], fonts["intro_l2"]
+    w1 = int(d.textlength(line1, font=f1))
+    w2 = int(d.textlength(line2, font=f2))
+    cx = W * SS // 2
+    cy = H * SS // 2 - 20 * SS
+    img = _grad_title(img, (cx - w1 // 2, cy - 36 * SS), line1, f1, phase)
+    img = _grad_title(img, (cx - w2 // 2, cy + 4 * SS), line2, f2, phase + 0.15)
+    d = ImageDraw.Draw(img)
+    sub = "T-scale reference · cyclical analysis"
+    sw = int(d.textlength(sub, font=fonts["intro_sub"]))
+    d.text((cx - sw // 2, cy + 52 * SS), sub, font=fonts["intro_sub"], fill=TXT)
+    return img.resize((W, H), Image.LANCZOS)
 
 
-def _grad_title(img: Image.Image, xy, text, font, phase: float) -> Image.Image:
-    """Draw text filled with a horizontally scrolling color gradient + glow."""
-    probe = ImageDraw.Draw(img)
-    x0, y0, x1, y1 = probe.textbbox(xy, text, font=font)
-    tw, th = max(1, x1 - x0), max(1, y1 - y0)
+def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
+    if f < TITLE_INTRO:
+        return _intro_frame(f, bg, fonts)
 
-    mask = Image.new("L", img.size, 0)
-    ImageDraw.Draw(mask).text(xy, text, font=font, fill=255)
+    cf = f - TITLE_INTRO
+    img = bg.copy()
+    d = ImageDraw.Draw(img)
 
-    strip = Image.new("RGB", (tw, 1))
-    sp = strip.load()
-    for x in range(tw):
-        sp[x, 0] = _grad_color(x / tw + phase)
-    strip = strip.resize((tw, th))
+    pad = PAD * SS
+    top = (TOPBAR + 4) * SS
+    bot = (H - BOTBAR - 4) * SS
+    base_y = (top + bot) // 2
+    y_scale = 40 * SS
+    chart_right = int((W - TABLE_W - 8) * SPLIT) * SS
+    split_x = chart_right
+    table_x0 = (W - TABLE_W - 6) * SS
+    spacing = (split_x - pad) / max(1, N - 1)
+    body_w = spacing * 0.55
 
-    layer = Image.new("RGB", img.size, (0, 0, 0))
-    layer.paste(strip, (x0, y0))
+    def sx(i: float) -> float:
+        return pad + i * spacing
 
+    def sy(v: float) -> float:
+        return base_y - v * y_scale
+
+    if cf < N * CANDLE_FRAMES:
+        revealed = cf // CANDLE_FRAMES + 1
+        proj_t = 0.0
+    else:
+        revealed = N
+        proj_t = min(1.0, (cf - N * CANDLE_FRAMES) / PROJ_FRAMES)
+    proj_revealed = int(proj_t * PROJC)
+
+    # grid
+    for gx in range(0, int(split_x), 28 * SS):
+        d.line([(gx, top - 4 * SS), (gx, bot + 4 * SS)], fill=GRID, width=1)
+    for gy in range(top, bot, 28 * SS):
+        d.line([(pad, gy), (split_x, gy)], fill=GRID, width=1)
+
+    # projection zone
+    d.rectangle([split_x, top - 4 * SS, table_x0 - 4 * SS, bot + 4 * SS], fill=(8, 12, 24))
+    dashed(
+        d,
+        [(split_x, y) for y in range(top, bot, 5 * SS)],
+        fill=DIM,
+        width=SS,
+        dash=1,
+        gap=1,
+    )
+
+    last_i = revealed - 1 + proj_t * PROJC
+    samples = [i * 0.2 for i in range(0, int(last_i * 5) + 2)]
+    cyc_pts = [(sx(w), sy(cyc(w))) for w in samples]
+    fld_pts = [(sx(w), sy(fld(w))) for w in samples]
+    price_pts = [(sx(w), sy(price(w))) for w in samples]
+
+    # glow cycle + FLD
     glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    glow.paste(layer.convert("RGBA"), (0, 0), mask)
+    gd = ImageDraw.Draw(glow)
+    if len(cyc_pts) > 1:
+        gd.line(cyc_pts, fill=(*MINT, 200), width=3 * SS, joint="curve")
+    if len(fld_pts) > 1:
+        gd.line(fld_pts, fill=(*CYAN, 180), width=2 * SS, joint="curve")
     glow = glow.filter(ImageFilter.GaussianBlur(3 * SS))
+    img = Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB")
+    d = ImageDraw.Draw(img)
 
-    out = Image.alpha_composite(img.convert("RGBA"), glow)
-    out.paste(layer, (0, 0), mask)
-    return out.convert("RGB")
+    # history candles
+    for i in range(min(revealed, N)):
+        x = sx(i)
+        o, c, hi, lo = ohlc(i)
+        col = UP if c >= o else DOWN
+        d.line([(x, sy(hi)), (x, sy(lo))], fill=col, width=max(1, SS))
+        yo, yc = sy(o), sy(c)
+        a, b = min(yo, yc), max(yo, yc)
+        if b - a < 2 * SS:
+            b = a + 2 * SS
+        d.rectangle([x - body_w / 2, a, x + body_w / 2, b], fill=col)
 
+    # cycle + FLD (history)
+    hist_end = min(len(samples), sum(1 for w in samples if w <= revealed - 1))
+    if hist_end > 1:
+        d.line(cyc_pts[:hist_end], fill=MINT, width=max(2, SS), joint="curve")
+        dashed(d, fld_pts[:hist_end], fill=CYAN, width=max(2, SS), dash=6, gap=3)
 
-def _chip(d, cx, cy, text, col, font):
-    tw = int(d.textlength(text, font=font))
-    d.rounded_rectangle([cx - tw / 2 - 4 * SS, cy - 1 * SS, cx + tw / 2 + 4 * SS, cy + 14 * SS],
-                        radius=3 * SS, fill=(6, 9, 17), outline=col, width=max(1, SS))
-    d.text((cx - tw / 2, cy + 1 * SS), text, font=font, fill=col)
+    # projection: single dashed path line (no hollow candles)
+    if proj_revealed > 0:
+        p_start = max(0, hist_end - 1)
+        if len(price_pts) > p_start + 1:
+            dashed(
+                d,
+                price_pts[p_start:],
+                fill=lerp(CYAN, WHITE, 0.4),
+                width=max(2, SS),
+                dash=6,
+                gap=4,
+            )
+        if len(cyc_pts) > p_start + 1:
+            dashed(d, cyc_pts[p_start:], fill=lerp(MINT, DIM, 0.25), width=max(1, SS), dash=5, gap=5)
 
+    def place_pivots(upto_i: int, projected: bool):
+        for center, kind in _pivot_centers():
+            if center > upto_i:
+                continue
+            if (center >= N) != projected:
+                continue
+            if kind == "max":
+                win = range(max(0, center - 2), min(N + PROJC, center + 3))
+                bi = max(win, key=lambda w: ohlc(w)[2])
+                _, _, hi, _ = ohlc(bi)
+                x, y = sx(bi), sy(hi)
+                col = DOWN
+                d.polygon(
+                    [(x, y - 7 * SS), (x - 5 * SS, y - 15 * SS), (x + 5 * SS, y - 15 * SS)],
+                    fill=col,
+                )
+                _chip(d, x, y - 31 * SS, "T-1i", col, fonts["pivot"])
+            else:
+                win = range(max(0, center - 2), min(N + PROJC, center + 3))
+                bi = min(win, key=lambda w: ohlc(w)[3])
+                _, _, _, lo = ohlc(bi)
+                x, y = sx(bi), sy(lo)
+                col = UP
+                d.polygon(
+                    [(x, y + 7 * SS), (x - 5 * SS, y + 15 * SS), (x + 5 * SS, y + 15 * SS)],
+                    fill=col,
+                )
+                _chip(d, x, y + 19 * SS, "T+1", col, fonts["pivot"])
 
-def _target(d, cx, cy, text, col, font):
-    # hollow target box on the projection zone
-    r = 6 * SS
-    d.line([(cx - r, cy), (cx + r, cy)], fill=col, width=SS)
-    d.line([(cx, cy - r), (cx, cy + r)], fill=col, width=SS)
-    d.ellipse([cx - r, cy - r, cx + r, cy + r], outline=col, width=max(1, SS))
-    _chip(d, cx, cy - 24 * SS if col == DOWN else cy + 12 * SS, text, col, font)
+    place_pivots(revealed - 1, projected=False)
+
+    if proj_revealed > 0:
+        for center, kind in _pivot_centers():
+            if center < N or center > N + proj_revealed - 1:
+                continue
+            x = sx(center)
+            y = sy(cyc(center))
+            if kind == "max":
+                _target(d, x, y, "T-1 H", DOWN, fonts["pivot"])
+            else:
+                _target(d, x, y, "T+1 L", UP, fonts["pivot"])
+
+    # reference table (right panel)
+    tbl_alpha = min(1.0, revealed / 8)
+    _draw_table(
+        d,
+        (table_x0, top - 2 * SS, W * SS - pad, bot + 2 * SS),
+        fonts,
+        tbl_alpha,
+    )
+
+    # top bar + title (always visible during chart)
+    bar = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    bd = ImageDraw.Draw(bar)
+    bd.rectangle([0, 0, W * SS, TOPBAR * SS], fill=(4, 7, 14, 235))
+    bd.line([(0, TOPBAR * SS), (W * SS, TOPBAR * SS)], fill=(*MINT, 100), width=SS)
+    img = Image.alpha_composite(img.convert("RGBA"), bar).convert("RGB")
+    slow_phase = f * 0.004
+    img = _grad_title(
+        img,
+        (PAD * SS, 8 * SS),
+        "MATASSA CYCLE FRAMEWORK",
+        fonts["title_bar"],
+        slow_phase,
+    )
+
+    d = ImageDraw.Draw(img)
+    legend = [("CICLO", MINT), ("FLD", CYAN), ("PIVOT", UP), ("PROIEZ.", DIM)]
+    lx = table_x0 - 12 * SS
+    for label, col in reversed(legend):
+        tw = int(d.textlength(label, font=fonts["legend"]))
+        lx -= tw
+        d.text((lx, 20 * SS), label, font=fonts["legend"], fill=col)
+        lx -= 6 * SS
+        d.ellipse([lx - 8 * SS, 22 * SS, lx - 2 * SS, 28 * SS], fill=col)
+        lx -= 14 * SS
+
+    bb = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    bbd = ImageDraw.Draw(bb)
+    bbd.rectangle([0, (H - BOTBAR) * SS, W * SS, H * SS], fill=(4, 7, 14, 230))
+    img = Image.alpha_composite(img.convert("RGBA"), bb).convert("RGB")
+    d = ImageDraw.Draw(img)
+    d.text(
+        (PAD * SS, (H - 17) * SS),
+        "reference-tables/m-1-0x.csv  ·  BTC 1H demo",
+        font=fonts["foot"],
+        fill=TXT,
+    )
+    rt = "@AnDr3HA · invite-only"
+    d.text(
+        (W * SS - PAD * SS - int(d.textlength(rt, font=fonts["foot"])), (H - 17) * SS),
+        rt,
+        font=fonts["foot"],
+        fill=DIM,
+    )
+
+    return img.resize((W, H), Image.LANCZOS)
 
 
 def main() -> None:
     fonts = {
-        "title_anim": fnt("ariblk.ttf", 16),
+        "intro_l1": fnt("ariblk.ttf", 34),
+        "intro_l2": fnt("ariblk.ttf", 22),
+        "intro_sub": fnt("consola.ttf", 11),
+        "title_bar": fnt("ariblk.ttf", 20),
         "legend": fnt("consolab.ttf", 8),
         "pivot": fnt("consolab.ttf", 8),
         "foot": fnt("consola.ttf", 9),
+        "tbl_title": fnt("arialbd.ttf", 10),
+        "tbl_sub": fnt("consola.ttf", 7),
+        "tbl_hdr": fnt("consolab.ttf", 7),
+        "tbl_cell": fnt("consola.ttf", 8),
     }
     bg = bg_gradient()
     frames = [build_frame(f, bg, fonts) for f in range(FRAMES)]
+
     pal = frames[-1].convert("RGB").quantize(colors=128, method=Image.MEDIANCUT, dither=Image.NONE)
     quant = [fr.convert("RGB").quantize(palette=pal, dither=Image.NONE) for fr in frames]
 
-    # slower at the end: longer hold on the final composed frame
     durations = [DURATION_MS] * FRAMES
-    for i in range(FRAMES - HOLD, FRAMES):
-        durations[i] = 90
-    durations[-1] = 1400  # pause before loop restart
+    for i in range(TITLE_INTRO):
+        durations[i] = 220
+    durations[-1] = 1600
 
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    quant[0].save(OUT, save_all=True, append_images=quant[1:], duration=durations,
-                  loop=0, optimize=True, disposal=2)
+    quant[0].save(
+        OUT,
+        save_all=True,
+        append_images=quant[1:],
+        duration=durations,
+        loop=0,
+        optimize=True,
+        disposal=2,
+    )
     print(f"Wrote {OUT} ({len(frames)} frames, {OUT.stat().st_size / 1024:.0f} KB)")
 
 
