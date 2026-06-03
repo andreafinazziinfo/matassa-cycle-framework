@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-W, H = 1280, 460
+W, H = 1280, 500
 SS = 2
 
 N = 32
@@ -28,7 +28,8 @@ DURATION_MS = 200
 PERIOD = 20.0
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
-OUT = ASSETS / "matassa-banner.gif"  # unique name — GitHub ignores ?v= on gif cache
+OUT = ASSETS / "matassa-banner.gif"
+OUT_CACHE_BUST = ASSETS / "matassa-banner-v3.gif"  # bump filename when GitHub caches old gif
 FONTS = Path("C:/Windows/Fonts")
 
 BG_TOP = (8, 11, 21)
@@ -46,11 +47,20 @@ TABLE_HDR = (15, 23, 42)
 TABLE_ROW = (11, 17, 32)
 TABLE_ALT = (14, 21, 38)
 
-PAD = 18
-TOPBAR = 68
-BOTBAR = 28
-TABLE_W = 300
-SPLIT = 0.54
+PAD = 16
+TOPBAR = 64
+BOTBAR = 26
+TABLE_W = 272
+PROJ_FRAC = 0.22  # fraction of chart width for projection zone
+
+# Faint formulas / labels (fx, fy relative to chart box)
+_MATH_FORMULAS = [
+    (0.04, 0.12, "sin(2\u03c0\u00b7t/T)"),
+    (0.38, 0.08, "FLD = sin(t \u2212 T/2)"),
+    (0.62, 0.14, "H \u2248 0.5 + \u03b5"),
+    (0.06, 0.88, "\u222b P(t)\u00b7e^{\u2212t\u00b2/2\u03c3\u00b2} dt"),
+    (0.55, 0.90, "\u03a3 a\u2099\u00b7sin(n\u03c9t)"),
+]
 
 # Compact rows from m-1-0x (Ciclo | CRYPTO)
 TABLE_ROWS = [
@@ -154,6 +164,47 @@ def _cyan_stars(d, box, frame: int):
         _draw_star(d, sx, sy, br * (0.75 + 0.35 * pulse), pulse)
 
 
+def _math_decor(d, box, frame: int, font) -> None:
+    """Background: Gaussian bells, concentric circles, cycle formulas."""
+    x0, y0, x1, y1 = box
+    cw, ch = x1 - x0, y1 - y0
+    pulse = 0.5 + 0.5 * math.sin(frame * 0.22)
+
+    for fx, fy, text in _MATH_FORMULAS:
+        tw = 0.55 + 0.45 * math.sin(frame * 0.18 + fx * 10)
+        col = lerp(DIM, lerp(VIOLET, CYAN, 0.35), tw * 0.55)
+        d.text((x0 + fx * cw, y0 + fy * ch), text, font=font, fill=col)
+
+    circles = [
+        (x0 + 0.18 * cw, y0 + 0.55 * ch, 0.14 * min(cw, ch)),
+        (x0 + 0.82 * cw, y0 + 0.48 * ch, 0.11 * min(cw, ch)),
+        (x0 + 0.72 * cw, y0 + 0.22 * ch, 0.08 * min(cw, ch)),
+    ]
+    for cx, cy, r in circles:
+        for k, col in enumerate((VIOLET, CYAN, MINT)):
+            rk = r * (1.0 - k * 0.28)
+            d.ellipse(
+                [cx - rk, cy - rk, cx + rk, cy + rk],
+                outline=lerp(col, DIM, 0.45 + k * 0.12),
+                width=max(1, SS),
+            )
+
+    bells = [
+        (x0 + 0.12 * cw, y0 + 0.72 * ch, 0.22 * cw, 0.18 * ch),
+        (x0 + 0.78 * cw, y0 + 0.78 * ch, 0.18 * cw, 0.14 * ch),
+    ]
+    for bx, by, bw, bh in bells:
+        pts = []
+        for i in range(48):
+            t = (i / 47) * 5.0 - 2.5
+            px = bx + (t / 2.5) * bw
+            py = by - bh * math.exp(-0.5 * t * t) * (0.85 + 0.15 * pulse)
+            pts.append((px, py))
+        if len(pts) > 1:
+            d.line(pts, fill=lerp(VIOLET, CYAN, 0.4 * pulse), width=max(1, SS), joint="curve")
+        d.line([(bx - bw * 0.1, by), (bx + bw * 1.1, by)], fill=DIM, width=1)
+
+
 def _white_title(img: Image.Image, xy, text, font, frame: int = 0) -> Image.Image:
     """Crisp white title with twinkling cyan star dots."""
     d = ImageDraw.Draw(img)
@@ -229,6 +280,7 @@ def _intro_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
     img = bg.copy()
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, W * SS, H * SS], fill=(5, 8, 16))
+    _math_decor(d, (40 * SS, 80 * SS, W * SS - 40 * SS, H * SS - 80 * SS), f, fonts["math"])
     line1 = "MATASSA"
     line2 = "CYCLE FRAMEWORK"
     f1, f2 = fonts["intro_l1"], fonts["intro_l2"]
@@ -255,15 +307,17 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
     d = ImageDraw.Draw(img)
 
     pad = PAD * SS
-    top = (TOPBAR + 4) * SS
-    bot = (H - BOTBAR - 4) * SS
+    top = (TOPBAR + 2) * SS
+    bot = (H - BOTBAR - 2) * SS
     base_y = (top + bot) // 2
-    y_scale = 48 * SS
-    chart_right = int((W - TABLE_W - 8) * SPLIT) * SS
-    split_x = chart_right
+    y_scale = 58 * SS
     table_x0 = (W - TABLE_W - 6) * SS
-    spacing = (split_x - pad) / max(1, N - 1)
-    body_w = spacing * 0.55
+    chart_x1 = table_x0 - 10 * SS
+    chart_w = chart_x1 - pad
+    total_bars = N + PROJC
+    spacing = chart_w / max(1, total_bars - 1)
+    split_x = pad + spacing * (N - 0.5)
+    body_w = min(spacing * 0.72, 16 * SS)
 
     def sx(i: float) -> float:
         return pad + i * spacing
@@ -278,6 +332,8 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
         revealed = N
         proj_t = min(1.0, (cf - N * CANDLE_FRAMES) / PROJ_FRAMES)
     proj_revealed = int(proj_t * PROJC)
+
+    _math_decor(d, (pad, top, chart_x1, bot), cf, fonts["math"])
 
     # grid
     for gx in range(0, int(split_x), 28 * SS):
@@ -318,7 +374,7 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
         x = sx(i)
         o, c, hi, lo = ohlc(i)
         col = UP if c >= o else DOWN
-        d.line([(x, sy(hi)), (x, sy(lo))], fill=col, width=max(1, SS))
+        d.line([(x, sy(hi)), (x, sy(lo))], fill=col, width=max(2, SS))
         yo, yc = sy(o), sy(c)
         a, b = min(yo, yc), max(yo, yc)
         if b - a < 2 * SS:
@@ -453,6 +509,7 @@ def main() -> None:
         "tbl_sub": fnt("consolab.ttf", 12),
         "tbl_hdr": fnt("consolab.ttf", 13),
         "tbl_cell": fnt("consolab.ttf", 13),
+        "math": fnt("consola.ttf", 10),
     }
     bg = bg_gradient()
     frames = [build_frame(f, bg, fonts) for f in range(FRAMES)]
@@ -475,11 +532,11 @@ def main() -> None:
         optimize=True,
         disposal=2,
     )
-    # Legacy path: some links may still point here
-    legacy = ASSETS / "banner.gif"
-    legacy.write_bytes(OUT.read_bytes())
-    print(f"Wrote {OUT} ({len(frames)} frames, {OUT.stat().st_size / 1024:.0f} KB)")
-    print(f"Synced {legacy}")
+    data = OUT.read_bytes()
+    for path in (ASSETS / "banner.gif", OUT_CACHE_BUST):
+        path.write_bytes(data)
+    print(f"Wrote {OUT} ({len(frames)} frames, {len(data) / 1024:.0f} KB)")
+    print(f"Synced banner.gif + {OUT_CACHE_BUST.name}")
 
 
 if __name__ == "__main__":
