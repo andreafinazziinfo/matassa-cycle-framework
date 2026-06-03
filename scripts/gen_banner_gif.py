@@ -35,6 +35,7 @@ BG_BOT = (12, 18, 36)
 GRID = (23, 31, 51)
 MINT = (9, 241, 184)
 AZURE = (56, 189, 248)     # FLD
+VIOLET = (139, 92, 246)    # title accent
 UP = (34, 197, 94)
 DOWN = (239, 68, 68)
 TXT = (148, 163, 184)
@@ -42,7 +43,7 @@ DIM = (71, 85, 105)
 WHITE = (236, 240, 248)
 
 PAD = 18
-TOPBAR = 40
+TOPBAR = 46
 BOTBAR = 26
 SPLIT = 0.70           # history | projection divider (fraction of width)
 
@@ -235,24 +236,25 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
                 y = sy(cyc(center))
                 _target(d, x, y, "T+1 L", UP, fonts["pivot"])
 
-    # --- top bar ---
+    # --- top bar with animated gradient title ---
     bar = Image.new("RGBA", img.size, (0, 0, 0, 0))
     bd = ImageDraw.Draw(bar)
-    bd.rectangle([0, 0, W * SS, TOPBAR * SS], fill=(6, 9, 17, 210))
+    bd.rectangle([0, 0, W * SS, TOPBAR * SS], fill=(6, 9, 17, 215))
     bd.line([(0, TOPBAR * SS), (W * SS, TOPBAR * SS)], fill=(*MINT, 90), width=SS)
     img = Image.alpha_composite(img.convert("RGBA"), bar).convert("RGB")
+
+    img = _grad_title(img, (PAD * SS, 10 * SS), "MATASSA CYCLE FRAMEWORK",
+                      fonts["title_anim"], f / FRAMES)
+
     d = ImageDraw.Draw(img)
-    d.text((PAD * SS, 11 * SS), "MATASSA", font=fonts["brand"], fill=MINT)
-    bx = PAD * SS + int(d.textlength("MATASSA", font=fonts["brand"])) + 8 * SS
-    d.text((bx, 11 * SS), "CYCLE FRAMEWORK", font=fonts["brand2"], fill=WHITE)
     legend = [("CICLO", MINT), ("FLD", AZURE), ("PIVOT", UP), ("PROIEZIONE", DIM)]
     lx = W * SS - PAD * SS
     for label, col in reversed(legend):
         tw = int(d.textlength(label, font=fonts["legend"]))
         lx -= tw
-        d.text((lx, 14 * SS), label, font=fonts["legend"], fill=col)
+        d.text((lx, 17 * SS), label, font=fonts["legend"], fill=col)
         lx -= 6 * SS
-        d.ellipse([lx - 8 * SS, 16 * SS, lx - 2 * SS, 22 * SS], fill=col)
+        d.ellipse([lx - 8 * SS, 19 * SS, lx - 2 * SS, 25 * SS], fill=col)
         lx -= 16 * SS
 
     # --- bottom bar ---
@@ -284,6 +286,44 @@ def _pivot_centers():
     return out
 
 
+def _grad_color(u: float):
+    """Flowing color across mint -> azure -> violet -> mint (seamless)."""
+    stops = [MINT, AZURE, VIOLET, MINT]
+    seg = (u % 1.0) * (len(stops) - 1)
+    i = int(seg)
+    fr = seg - i
+    if i >= len(stops) - 1:
+        i, fr = len(stops) - 2, 1.0
+    return lerp(stops[i], stops[i + 1], fr)
+
+
+def _grad_title(img: Image.Image, xy, text, font, phase: float) -> Image.Image:
+    """Draw text filled with a horizontally scrolling color gradient + glow."""
+    probe = ImageDraw.Draw(img)
+    x0, y0, x1, y1 = probe.textbbox(xy, text, font=font)
+    tw, th = max(1, x1 - x0), max(1, y1 - y0)
+
+    mask = Image.new("L", img.size, 0)
+    ImageDraw.Draw(mask).text(xy, text, font=font, fill=255)
+
+    strip = Image.new("RGB", (tw, 1))
+    sp = strip.load()
+    for x in range(tw):
+        sp[x, 0] = _grad_color(x / tw + phase)
+    strip = strip.resize((tw, th))
+
+    layer = Image.new("RGB", img.size, (0, 0, 0))
+    layer.paste(strip, (x0, y0))
+
+    glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    glow.paste(layer.convert("RGBA"), (0, 0), mask)
+    glow = glow.filter(ImageFilter.GaussianBlur(3 * SS))
+
+    out = Image.alpha_composite(img.convert("RGBA"), glow)
+    out.paste(layer, (0, 0), mask)
+    return out.convert("RGB")
+
+
 def _chip(d, cx, cy, text, col, font):
     tw = int(d.textlength(text, font=font))
     d.rounded_rectangle([cx - tw / 2 - 4 * SS, cy - 1 * SS, cx + tw / 2 + 4 * SS, cy + 14 * SS],
@@ -302,8 +342,7 @@ def _target(d, cx, cy, text, col, font):
 
 def main() -> None:
     fonts = {
-        "brand": fnt("ariblk.ttf", 13),
-        "brand2": fnt("arialbd.ttf", 13),
+        "title_anim": fnt("ariblk.ttf", 16),
         "legend": fnt("consolab.ttf", 8),
         "pivot": fnt("consolab.ttf", 8),
         "foot": fnt("consola.ttf", 9),
