@@ -1,6 +1,6 @@
 """Generate assets/banner.gif — Matassa-style chart that draws itself.
 
-- Large intro title with slow color shift, then persistent top title
+- Large white intro title with cyan star sparkles, then persistent top title
 - One candle every few frames (slow)
 - FLD in bright cyan
 - Projection zone: dashed lines only (no hollow candles)
@@ -13,7 +13,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-W, H = 1100, 380
+W, H = 1280, 460
 SS = 2
 
 N = 32
@@ -45,11 +45,11 @@ TABLE_HDR = (15, 23, 42)
 TABLE_ROW = (11, 17, 32)
 TABLE_ALT = (14, 21, 38)
 
-PAD = 16
-TOPBAR = 56
-BOTBAR = 24
-TABLE_W = 258
-SPLIT = 0.56
+PAD = 18
+TOPBAR = 68
+BOTBAR = 28
+TABLE_W = 300
+SPLIT = 0.54
 
 # Compact rows from m-1-0x (Ciclo | CRYPTO)
 TABLE_ROWS = [
@@ -119,70 +119,69 @@ def dashed(d, pts, fill, width, dash=5, gap=4):
         i += dash + gap
 
 
-def _grad_color(u: float):
-    stops = [MINT, CYAN, VIOLET, MINT]
-    seg = (u % 1.0) * (len(stops) - 1)
-    i = int(seg)
-    fr = seg - i
-    if i >= len(stops) - 1:
-        i, fr = len(stops) - 2, 1.0
-    return lerp(stops[i], stops[i + 1], fr)
+# Star offsets relative to title bbox (fx, fy, base_radius px @ 1x)
+_TITLE_STARS = [
+    (-0.12, -0.55, 2.2),
+    (1.08, -0.42, 1.8),
+    (-0.08, 1.15, 1.6),
+    (1.12, 0.95, 2.0),
+    (0.42, -0.72, 1.4),
+    (0.78, 1.22, 1.5),
+    (-0.22, 0.35, 1.2),
+    (1.02, 0.18, 1.3),
+]
 
 
-def _grad_title(img: Image.Image, xy, text, font, phase: float, soft_glow: bool = False) -> Image.Image:
-    """Gradient fill text; sharp by default (no blur — GIF quantize was muddy)."""
-    probe = ImageDraw.Draw(img)
-    x0, y0, x1, y1 = probe.textbbox(xy, text, font=font)
+def _draw_star(d, cx: float, cy: float, r: float, bright: float):
+    """Small cyan sparkle (dot + cross)."""
+    col = lerp(CYAN, WHITE, min(1.0, bright))
+    ri = max(1, int(r * SS))
+    d.ellipse([cx - ri, cy - ri, cx + ri, cy + ri], fill=col)
+    if bright > 0.65:
+        arm = ri + SS
+        d.line([(cx - arm, cy), (cx + arm, cy)], fill=col, width=max(1, SS))
+        d.line([(cx, cy - arm), (cx, cy + arm)], fill=col, width=max(1, SS))
+
+
+def _cyan_stars(d, box, frame: int):
+    x0, y0, x1, y1 = box
     tw, th = max(1, x1 - x0), max(1, y1 - y0)
+    for i, (fx, fy, br) in enumerate(_TITLE_STARS):
+        pulse = 0.45 + 0.55 * math.sin(frame * 0.28 + i * 1.9)
+        sx = x0 + fx * tw
+        sy = y0 + fy * th
+        _draw_star(d, sx, sy, br * (0.75 + 0.35 * pulse), pulse)
 
-    mask = Image.new("L", img.size, 0)
-    md = ImageDraw.Draw(mask)
-    for dx, dy in ((-1, -1), (-1, 1), (1, -1), (1, 1), (-1, 0), (1, 0), (0, -1), (0, 1)):
-        md.text((xy[0] + dx * SS, xy[1] + dy * SS), text, font=font, fill=220)
-    md.text(xy, text, font=font, fill=255)
 
-    strip = Image.new("RGB", (tw, 1))
-    sp = strip.load()
-    for x in range(tw):
-        sp[x, 0] = _grad_color(x / max(1, tw) + phase)
-    strip = strip.resize((tw, th), Image.Resampling.NEAREST)
-
-    layer = Image.new("RGB", img.size, (0, 0, 0))
-    layer.paste(strip, (x0, y0))
-
-    out = img.convert("RGBA")
-    stroke = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    sd = ImageDraw.Draw(stroke)
-    for dx, dy in ((-1, -1), (-1, 1), (1, -1), (1, 1), (-1, 0), (1, 0), (0, -1), (0, 1)):
-        sd.text((xy[0] + dx * SS, xy[1] + dy * SS), text, font=font, fill=(0, 0, 0, 255))
-    out = Image.alpha_composite(out, stroke)
-    if soft_glow:
-        glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
-        glow.paste(layer.convert("RGBA"), (0, 0), mask)
-        glow = glow.filter(ImageFilter.GaussianBlur(2 * SS))
-        out = Image.alpha_composite(out, glow)
-    out.paste(layer, (0, 0), mask)
-    return out.convert("RGB")
+def _white_title(img: Image.Image, xy, text, font, frame: int = 0) -> Image.Image:
+    """Crisp white title with twinkling cyan star dots."""
+    d = ImageDraw.Draw(img)
+    box = d.textbbox(xy, text, font=font)
+    for dx, dy in ((-1, 0), (1, 0), (0, -1), (0, 1)):
+        d.text((xy[0] + dx * SS, xy[1] + dy * SS), text, font=font, fill=(0, 0, 0))
+    d.text(xy, text, font=font, fill=WHITE)
+    _cyan_stars(d, box, frame)
+    return img
 
 
 def _draw_table(d, box, fonts, alpha: float = 1.0):
     x0, y0, x1, y1 = box
     d.rounded_rectangle(box, radius=5 * SS, fill=TABLE_HDR, outline=lerp(DIM, MINT, 0.4 * alpha), width=max(1, SS))
-    pad_x = x0 + 12 * SS
-    y = y0 + 12 * SS
+    pad_x = x0 + 14 * SS
+    y = y0 + 14 * SS
     d.text((pad_x, y), "T-SCALE", font=fonts["tbl_title"], fill=MINT)
-    y += 22 * SS
+    y += 26 * SS
     d.text((pad_x, y), "m-1-0x · CRYPTO", font=fonts["tbl_sub"], fill=TXT)
-    y += 20 * SS
-    d.line([(x0 + 8 * SS, y), (x1 - 8 * SS, y)], fill=GRID, width=SS)
-    y += 12 * SS
+    y += 24 * SS
+    d.line([(x0 + 10 * SS, y), (x1 - 10 * SS, y)], fill=GRID, width=SS)
+    y += 14 * SS
 
-    col_w = (x1 - x0 - 24 * SS) / 2
+    col_w = (x1 - x0 - 28 * SS) / 2
     d.text((pad_x, y), "Ciclo", font=fonts["tbl_hdr"], fill=WHITE)
     d.text((pad_x + col_w, y), "Durata", font=fonts["tbl_hdr"], fill=CYAN)
-    y += 18 * SS
+    y += 22 * SS
 
-    row_h = 20 * SS
+    row_h = 26 * SS
     for i, (ciclo, dur) in enumerate(TABLE_ROWS):
         bg = TABLE_ALT if i % 2 else TABLE_ROW
         d.rectangle([x0 + 8 * SS, y - 3 * SS, x1 - 8 * SS, y + row_h - 4 * SS], fill=bg)
@@ -229,20 +228,20 @@ def _intro_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
     img = bg.copy()
     d = ImageDraw.Draw(img)
     d.rectangle([0, 0, W * SS, H * SS], fill=(5, 8, 16))
-    phase = f * 0.012
     line1 = "MATASSA"
     line2 = "CYCLE FRAMEWORK"
     f1, f2 = fonts["intro_l1"], fonts["intro_l2"]
     w1 = int(d.textlength(line1, font=f1))
     w2 = int(d.textlength(line2, font=f2))
     cx = W * SS // 2
-    cy = H * SS // 2 - 20 * SS
-    img = _grad_title(img, (cx - w1 // 2, cy - 36 * SS), line1, f1, phase, soft_glow=True)
-    img = _grad_title(img, (cx - w2 // 2, cy + 4 * SS), line2, f2, phase + 0.15, soft_glow=True)
+    cy = H * SS // 2 - 24 * SS
+    img = _white_title(img, (cx - w1 // 2, cy - 44 * SS), line1, f1, f)
+    img = _white_title(img, (cx - w2 // 2, cy + 8 * SS), line2, f2, f + 3)
     d = ImageDraw.Draw(img)
     sub = "T-scale reference · cyclical analysis"
     sw = int(d.textlength(sub, font=fonts["intro_sub"]))
-    d.text((cx - sw // 2, cy + 52 * SS), sub, font=fonts["intro_sub"], fill=TXT)
+    d.text((cx - sw // 2, cy + 62 * SS), sub, font=fonts["intro_sub"], fill=TXT)
+    _cyan_stars(d, (cx - w1 // 2 - 30 * SS, cy - 60 * SS, cx + w1 // 2 + 30 * SS, cy + 80 * SS), f + 5)
     return img.resize((W, H), Image.LANCZOS)
 
 
@@ -258,7 +257,7 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
     top = (TOPBAR + 4) * SS
     bot = (H - BOTBAR - 4) * SS
     base_y = (top + bot) // 2
-    y_scale = 40 * SS
+    y_scale = 48 * SS
     chart_right = int((W - TABLE_W - 8) * SPLIT) * SS
     split_x = chart_right
     table_x0 = (W - TABLE_W - 6) * SS
@@ -399,26 +398,24 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
     bd.rectangle([0, 0, W * SS, TOPBAR * SS], fill=(4, 7, 14, 235))
     bd.line([(0, TOPBAR * SS), (W * SS, TOPBAR * SS)], fill=(*MINT, 100), width=SS)
     img = Image.alpha_composite(img.convert("RGBA"), bar).convert("RGB")
-    slow_phase = f * 0.004
-    img = _grad_title(
+    img = _white_title(
         img,
-        (PAD * SS, 10 * SS),
+        (PAD * SS, 12 * SS),
         "MATASSA CYCLE FRAMEWORK",
         fonts["title_bar"],
-        slow_phase,
-        soft_glow=False,
+        f,
     )
 
     d = ImageDraw.Draw(img)
     legend = [("CICLO", MINT), ("FLD", CYAN), ("PIVOT", UP), ("PROIEZ.", WHITE)]
-    lx = table_x0 - 12 * SS
+    lx = table_x0 - 14 * SS
     for label, col in reversed(legend):
         tw = int(d.textlength(label, font=fonts["legend"]))
         lx -= tw
-        d.text((lx, 20 * SS), label, font=fonts["legend"], fill=col)
-        lx -= 6 * SS
-        d.ellipse([lx - 8 * SS, 22 * SS, lx - 2 * SS, 28 * SS], fill=col)
-        lx -= 14 * SS
+        d.text((lx, 26 * SS), label, font=fonts["legend"], fill=col)
+        lx -= 8 * SS
+        d.ellipse([lx - 9 * SS, 28 * SS, lx - 2 * SS, 35 * SS], fill=col)
+        lx -= 16 * SS
 
     bb = Image.new("RGBA", img.size, (0, 0, 0, 0))
     bbd = ImageDraw.Draw(bb)
@@ -426,14 +423,14 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
     img = Image.alpha_composite(img.convert("RGBA"), bb).convert("RGB")
     d = ImageDraw.Draw(img)
     d.text(
-        (PAD * SS, (H - 17) * SS),
+        (PAD * SS, (H - 20) * SS),
         "reference-tables/m-1-0x.csv  ·  BTC 1H demo",
         font=fonts["foot"],
         fill=TXT,
     )
     rt = "@AnDr3HA · invite-only"
     d.text(
-        (W * SS - PAD * SS - int(d.textlength(rt, font=fonts["foot"])), (H - 17) * SS),
+        (W * SS - PAD * SS - int(d.textlength(rt, font=fonts["foot"])), (H - 20) * SS),
         rt,
         font=fonts["foot"],
         fill=DIM,
@@ -444,17 +441,17 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
 
 def main() -> None:
     fonts = {
-        "intro_l1": fnt("ariblk.ttf", 38),
-        "intro_l2": fnt("ariblk.ttf", 24),
-        "intro_sub": fnt("consola.ttf", 12),
-        "title_bar": fnt("ariblk.ttf", 22),
-        "legend": fnt("consolab.ttf", 9),
-        "pivot": fnt("consolab.ttf", 9),
-        "foot": fnt("consola.ttf", 10),
-        "tbl_title": fnt("arialbd.ttf", 14),
-        "tbl_sub": fnt("consolab.ttf", 10),
-        "tbl_hdr": fnt("consolab.ttf", 11),
-        "tbl_cell": fnt("consolab.ttf", 11),
+        "intro_l1": fnt("ariblk.ttf", 46),
+        "intro_l2": fnt("ariblk.ttf", 30),
+        "intro_sub": fnt("consola.ttf", 14),
+        "title_bar": fnt("ariblk.ttf", 28),
+        "legend": fnt("consolab.ttf", 11),
+        "pivot": fnt("consolab.ttf", 11),
+        "foot": fnt("consola.ttf", 12),
+        "tbl_title": fnt("arialbd.ttf", 17),
+        "tbl_sub": fnt("consolab.ttf", 12),
+        "tbl_hdr": fnt("consolab.ttf", 13),
+        "tbl_cell": fnt("consolab.ttf", 13),
     }
     bg = bg_gradient()
     frames = [build_frame(f, bg, fonts) for f in range(FRAMES)]
