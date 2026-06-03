@@ -1,7 +1,7 @@
 <div align="center">
 
 <!-- GIF animates on GitHub (SVG CSS animations are stripped by GitHub's image proxy) -->
-<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/banner.gif?v=4" width="100%" alt="Matassa Cycle Framework — animated chart with cycle wave, FLD and pivots" />
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/banner.gif?v=5" width="100%" alt="Matassa Cycle Framework — chart drawing candle-by-candle with cycle, FLD, pivots and projection" />
 
 <br>
 
