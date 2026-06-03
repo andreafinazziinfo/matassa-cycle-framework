@@ -1,8 +1,9 @@
-"""Generate assets/banner.gif for the README.
+"""Generate assets/banner.gif — an animated mock of the Matassa indicator.
 
-GitHub's image proxy strips SVG CSS/SMIL animation, so the animated banner is a
-GIF. Rendered at 2x with supersampling + glow, then downscaled (LANCZOS) and
-quantized to a shared adaptive palette to keep the file small.
+GitHub's image proxy strips SVG animation, so the banner is a GIF. It renders a
+scrolling candlestick chart with the dominant cycle wave (centratura), an FLD
+line and min/max pivot labels — a stylised preview of the real indicator.
+Rendered at 2x (supersampling) then downscaled and quantized for a small file.
 """
 from __future__ import annotations
 
@@ -11,197 +12,215 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-# Logical canvas; rendered at SS x then downscaled for crisp antialiasing.
 W, H = 850, 280
 SS = 2
-FRAMES = 36
-DURATION_MS = 70
+FRAMES = 40
+DURATION_MS = 80
+
+# Chart loops seamlessly: scrolls exactly PERIOD candles over FRAMES frames,
+# and the price series is periodic with that period.
+PERIOD = 20            # candles per market cycle
+SCROLL_CANDLES = PERIOD
+SPACING = 15           # logical px between candles
 
 OUT = Path(__file__).resolve().parents[1] / "assets" / "banner.gif"
 FONTS = Path("C:/Windows/Fonts")
 
-# Palette (matches GitHub profile brand)
-BG_TOP = (7, 10, 19)
-BG_BOT = (11, 17, 34)
-GRID = (24, 33, 54)
+BG_TOP = (8, 11, 21)
+BG_BOT = (12, 18, 36)
+GRID = (23, 31, 51)
 MINT = (9, 241, 184)
 BLUE = (14, 165, 233)
 VIOLET = (139, 92, 246)
-RED = (239, 68, 68)
-AMBER = (234, 179, 8)
-GREEN = (34, 197, 94)
+UP = (34, 197, 94)
+DOWN = (239, 68, 68)
 TXT = (148, 163, 184)
-TXT_DIM = (71, 85, 105)
+DIM = (71, 85, 105)
 WHITE = (236, 240, 248)
 
 
-def font(name: str, size: int) -> ImageFont.FreeTypeFont:
+def fnt(name: str, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.truetype(str(FONTS / name), size * SS)
 
 
-def s(v: int) -> int:
-    return v * SS
-
-
-def lerp(a: tuple[int, int, int], b: tuple[int, int, int], t: float) -> tuple[int, int, int]:
+def lerp(a, b, t):
     return tuple(int(a[i] + (b[i] - a[i]) * t) for i in range(3))
 
 
+# ---- periodic price model (seamless loop) ----
+def cycle(w: float) -> float:
+    """Dominant market cycle (centratura wave)."""
+    return math.sin(2 * math.pi * w / PERIOD)
+
+
+def price(w: float) -> float:
+    """Full price path: cycle + harmonics (all integer over PERIOD -> periodic)."""
+    return (
+        1.00 * math.sin(2 * math.pi * w / PERIOD)
+        + 0.34 * math.sin(2 * math.pi * 2 * w / PERIOD + 0.6)
+        + 0.16 * math.sin(2 * math.pi * 3 * w / PERIOD + 1.3)
+        + 0.08 * math.sin(2 * math.pi * 5 * w / PERIOD + 2.1)
+    )
+
+
 def bg_gradient() -> Image.Image:
-    base = Image.new("RGB", (W * SS, H * SS), BG_TOP)
-    px = base.load()
+    img = Image.new("RGB", (W * SS, H * SS), BG_TOP)
+    px = img.load()
     for y in range(H * SS):
         t = y / (H * SS)
-        # darker at edges, slightly lit center band
-        c = lerp(BG_TOP, BG_BOT, math.sin(t * math.pi) * 0.9)
+        c = lerp(BG_TOP, BG_BOT, math.sin(t * math.pi) * 0.85)
         for x in range(W * SS):
             px[x, y] = c
-    return base
-
-
-def wave_points(phase: float, base_y: int, amp: float, freq: float, x0: int, x1: int, step: int):
-    pts = []
-    for x in range(x0, x1, step):
-        t = x / (W * SS) * freq * math.pi + phase
-        y = base_y + amp * math.sin(t) + amp * 0.45 * math.sin(t * 2.3 + 0.6)
-        pts.append((x, int(y)))
-    return pts
+    return img
 
 
 def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
     img = bg.copy()
-    phase = f / FRAMES * 2 * math.pi  # seamless loop
+    d = ImageDraw.Draw(img)
+    SSx = SS
+
+    # geometry
+    mid_y = int(H * 0.5) * SSx
+    y_scale = 64 * SSx           # price units -> px
+    sp = SPACING * SSx
+    scroll = (f / FRAMES) * SCROLL_CANDLES * sp
+
+    def sx(world_w: float) -> float:
+        return world_w * sp - scroll + 40 * SSx
+
+    def sy(p: float) -> float:
+        return mid_y - p * y_scale
 
     # --- grid ---
-    grid = ImageDraw.Draw(img)
-    g = 30 * SS
-    for x in range(0, W * SS, g):
-        grid.line([(x, 0), (x, H * SS)], fill=GRID, width=1)
-    for y in range(0, H * SS, g):
-        grid.line([(0, y), (W * SS, y)], fill=GRID, width=1)
+    for gx in range(0, W * SSx, 30 * SSx):
+        d.line([(gx, 0), (gx, H * SSx)], fill=GRID, width=1)
+    for gy in range(0, H * SSx, 30 * SSx):
+        d.line([(0, gy), (W * SSx, gy)], fill=GRID, width=1)
 
-    # --- glow layer (wave + markers) ---
+    # world range of candles that fall in view
+    w0 = int((scroll - 60 * SSx) / sp)
+    w1 = int((scroll + (W + 60) * SSx) / sp) + 1
+
+    # --- glow layer (cycle wave + FLD) ---
     glow = Image.new("RGBA", img.size, (0, 0, 0, 0))
     gd = ImageDraw.Draw(glow)
-
-    base_y = int(H * SS * 0.62)
-    amp = 26 * SS
-    main = wave_points(phase, base_y, amp, 4.0, -40 * SS, (W + 40) * SS, 4 * SS)
-    back = wave_points(phase * 0.6 + 1.5, base_y + 14 * SS, amp * 0.7, 3.2, -40 * SS, (W + 40) * SS, 5 * SS)
-
-    gd.line(back, fill=(*VIOLET, 150), width=2 * SS, joint="curve")
-    gd.line(main, fill=(*MINT, 220), width=3 * SS, joint="curve")
-
-    # cycle markers travelling along the wave (pivots)
-    n = len(main)
-    for k in range(5):
-        idx = int((f / FRAMES + k / 5) % 1.0 * n)
-        cx, cy = main[idx]
-        col = MINT if k % 2 == 0 else BLUE
-        r = 5 * SS
-        gd.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(*col, 255))
-
-    glow = glow.filter(ImageFilter.GaussianBlur(5 * SS))
+    cyc_pts = [(sx(w), sy(cycle(w))) for w in [i * 0.25 for i in range(w0 * 4, w1 * 4)]]
+    fld_pts = [(sx(w), sy(cycle(w - PERIOD / 2) * 0.92)) for w in [i * 0.25 for i in range(w0 * 4, w1 * 4)]]
+    if len(cyc_pts) > 1:
+        gd.line(cyc_pts, fill=(*MINT, 200), width=3 * SSx, joint="curve")
+    if len(fld_pts) > 1:
+        gd.line(fld_pts, fill=(*VIOLET, 150), width=2 * SSx, joint="curve")
+    glow = glow.filter(ImageFilter.GaussianBlur(4 * SSx))
     img = Image.alpha_composite(img.convert("RGBA"), glow).convert("RGB")
-
     d = ImageDraw.Draw(img)
-    # sharp wave on top of glow
-    d.line(main, fill=BLUE, width=1 * SS, joint="curve")
-    for k in range(5):
-        idx = int((f / FRAMES + k / 5) % 1.0 * n)
-        cx, cy = main[idx]
-        col = MINT if k % 2 == 0 else BLUE
-        r = 3 * SS
-        d.ellipse([cx - r, cy - r, cx + r, cy + r], fill=col, outline=WHITE, width=1)
 
-    # ============ LEFT: terminal panel ============
-    panel = (s(34), s(46), s(372), s(234))
-    d.rounded_rectangle(panel, radius=s(8), fill=(4, 6, 13), outline=GRID, width=SS)
-    d.ellipse([s(52) - s(4), s(64) - s(4), s(52) + s(4), s(64) + s(4)], fill=RED)
-    d.ellipse([s(66) - s(4), s(64) - s(4), s(66) + s(4), s(64) + s(4)], fill=AMBER)
-    d.ellipse([s(80) - s(4), s(64) - s(4), s(80) + s(4), s(64) + s(4)], fill=GREEN)
-    d.text((s(98), s(58), ), "MATASSA://REFERENCE_TABLES", font=fonts["hdr"], fill=TXT_DIM)
-    d.line([(s(46), s(78)), (s(360), s(78))], fill=GRID, width=SS)
+    # --- candlesticks ---
+    body_w = int(sp * 0.55)
+    for w in range(w0, w1):
+        x = sx(w)
+        if x < -sp or x > (W + sp) * SSx:
+            continue
+        o = price(w - 1)
+        c = price(w)
+        hi = max(o, c) + 0.14 + 0.05 * abs(math.sin(w * 1.7))
+        lo = min(o, c) - 0.14 - 0.05 * abs(math.cos(w * 2.1))
+        col = UP if c >= o else DOWN
+        # wick
+        d.line([(x, sy(hi)), (x, sy(lo))], fill=col, width=max(1, SSx))
+        # body
+        yo, yc = sy(o), sy(c)
+        top, bot = min(yo, yc), max(yo, yc)
+        if bot - top < 2 * SSx:
+            bot = top + 2 * SSx
+        d.rectangle([x - body_w / 2, top, x + body_w / 2, bot], fill=col)
 
-    mono = fonts["mono"]
-    lines = [
-        [("matassa@cycle", VIOLET), (":", TXT), ("~/tables", BLUE), ("$ load m-1-0x.csv", TXT)],
-        [("[", TXT), ("OK", MINT), ("] Profile M (1.0x) - 6 markets", TXT)],
-        [("[", TXT), ("OK", MINT), ("] T-scale T .. T+10 mapped", TXT)],
-        [("[", TXT), ("INF", VIOLET), ("] Crypto 100% | US 19.3%", TXT)],
-        [("[", TXT), ("INF", VIOLET), ("] Pine private | TV invite", TXT)],
-        [("[", TXT), ("SYS", BLUE), ("] Public: CSV + XLSX", TXT)],
-    ]
-    y = s(96)
-    for segs in lines:
-        x = s(52)
-        for text, col in segs:
-            d.text((x, y), text, font=mono, fill=col)
-            x += int(d.textlength(text, font=mono))
-        y += s(21)
-    # prompt + blinking cursor
-    x = s(52)
-    for text, col in [("matassa@cycle", VIOLET), (":", TXT), ("~/tables", BLUE), ("$ status ", WHITE)]:
-        d.text((x, y), text, font=mono, fill=col)
-        x += int(d.textlength(text, font=mono))
-    if f % 12 < 7:
-        d.rectangle([x, y + s(2), x + s(7), y + s(13)], fill=MINT)
+    # sharp cycle line on top
+    if len(cyc_pts) > 1:
+        d.line(cyc_pts, fill=MINT, width=max(1, SSx), joint="curve")
+    # dashed FLD (draw as short segments)
+    for i in range(0, len(fld_pts) - 4, 8):
+        seg = fld_pts[i:i + 4]
+        if len(seg) > 1:
+            d.line(seg, fill=VIOLET, width=max(1, SSx), joint="curve")
 
-    # ============ RIGHT: title block ============
-    rx = s(420)
-    # status badge with pulsing dot
-    bx, by = s(622), s(54)
-    d.rounded_rectangle([bx, by - s(11), bx + s(150), by + s(11)], radius=s(11),
-                        fill=(11, 23, 22), outline=MINT, width=1)
-    pr = s(4) + (s(2) if f % 18 < 9 else 0)
-    d.ellipse([bx + s(16) - pr, by - pr, bx + s(16) + pr, by + pr], fill=MINT)
-    d.text((bx + s(28), by - s(7)), "REFERENCE LIVE", font=fonts["badge"], fill=MINT)
+    # --- pivot markers + labels (peaks=max, troughs=min) ---
+    label_f = fonts["pivot"]
+    for w in range(w0, w1):
+        m = w % PERIOD
+        x = sx(w)
+        if x < 20 * SSx or x > (W - 20) * SSx:
+            continue
+        if m == 5:  # peak -> max (red)
+            y = sy(cycle(w))
+            d.polygon([(x, y - 6 * SSx), (x - 5 * SSx, y - 14 * SSx), (x + 5 * SSx, y - 14 * SSx)], fill=DOWN)
+            _chip(d, x, y - 30 * SSx, "T-1i", DOWN, label_f, SSx)
+        elif m == 15:  # trough -> min (green)
+            y = sy(cycle(w))
+            d.polygon([(x, y + 6 * SSx), (x - 5 * SSx, y + 14 * SSx), (x + 5 * SSx, y + 14 * SSx)], fill=UP)
+            _chip(d, x, y + 18 * SSx, "T+1", UP, label_f, SSx)
+        elif m == 0:  # potential
+            y = sy(cycle(w))
+            d.ellipse([x - 3 * SSx, y - 3 * SSx, x + 3 * SSx, y + 3 * SSx], outline=BLUE, width=max(1, SSx))
 
-    # glowing title
-    tglow = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    tg = ImageDraw.Draw(tglow)
-    tg.text((rx, s(80)), "MATASSA CYCLE", font=fonts["title"], fill=(*MINT, 110))
-    tg.text((rx, s(120)), "FRAMEWORK", font=fonts["title"], fill=(*MINT, 110))
-    tglow = tglow.filter(ImageFilter.GaussianBlur(4 * SS))
-    img = Image.alpha_composite(img.convert("RGBA"), tglow).convert("RGB")
+    # --- top title bar (compact, lets the chart breathe) ---
+    bar = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    bd = ImageDraw.Draw(bar)
+    bd.rectangle([0, 0, W * SSx, 40 * SSx], fill=(6, 9, 17, 205))
+    bd.line([(0, 40 * SSx), (W * SSx, 40 * SSx)], fill=(*MINT, 90), width=SSx)
+    img = Image.alpha_composite(img.convert("RGBA"), bar).convert("RGB")
     d = ImageDraw.Draw(img)
-    d.text((rx, s(80)), "MATASSA CYCLE", font=fonts["title"], fill=WHITE)
-    d.text((rx, s(120)), "FRAMEWORK", font=fonts["title"], fill=WHITE)
-    d.text((rx, s(164)), "T-SCALE DURATIONS  /  CROSS-MARKET CALIBRATION", font=fonts["sub"], fill=MINT)
+    d.text((20 * SSx, 11 * SSx), "MATASSA", font=fonts["brand"], fill=MINT)
+    bx = 20 * SSx + int(d.textlength("MATASSA", font=fonts["brand"])) + 8 * SSx
+    d.text((bx, 11 * SSx), "CYCLE FRAMEWORK", font=fonts["brand2"], fill=WHITE)
+    # right side: legend
+    legend = [("CICLO", MINT), ("FLD", VIOLET), ("PIVOT", UP)]
+    lx = W * SSx - 20 * SSx
+    for label, col in reversed(legend):
+        tw = int(d.textlength(label, font=fonts["legend"]))
+        lx -= tw
+        d.text((lx, 14 * SSx), label, font=fonts["legend"], fill=col)
+        lx -= 6 * SSx
+        d.ellipse([lx - 8 * SSx, 16 * SSx, lx - 2 * SSx, 22 * SSx], fill=col)
+        lx -= 18 * SSx
 
-    # chips
-    chips = [("MIN - M - MAX", MINT), ("T .. T+10", VIOLET), ("@AnDr3HA  TV", TXT)]
-    cx = rx
-    for label, col in chips:
-        w = int(d.textlength(label, font=fonts["chip"])) + s(24)
-        d.rounded_rectangle([cx, s(190), cx + w, s(216)], radius=s(5), fill=(7, 12, 20), outline=GRID, width=1)
-        d.text((cx + s(12), s(196)), label, font=fonts["chip"], fill=col)
-        cx += w + s(10)
+    # --- bottom strip ---
+    bot = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    btd = ImageDraw.Draw(bot)
+    btd.rectangle([0, (H - 26) * SSx, W * SSx, H * SSx], fill=(6, 9, 17, 205))
+    img = Image.alpha_composite(img.convert("RGBA"), bot).convert("RGB")
+    d = ImageDraw.Draw(img)
+    d.text((20 * SSx, (H - 20) * SSx), "T-scale reference tables  ·  BTC 1H demo",
+           font=fonts["foot"], fill=TXT)
+    rtext = "Full suite @AnDr3HA · invite-only"
+    d.text((W * SSx - 20 * SSx - int(d.textlength(rtext, font=fonts["foot"])), (H - 20) * SSx),
+           rtext, font=fonts["foot"], fill=DIM)
 
     return img.resize((W, H), Image.LANCZOS)
 
 
+def _chip(d: ImageDraw.ImageDraw, cx, cy, text, col, font, SSx):
+    tw = int(d.textlength(text, font=font))
+    d.rounded_rectangle([cx - tw / 2 - 4 * SSx, cy - 1 * SSx, cx + tw / 2 + 4 * SSx, cy + 14 * SSx],
+                        radius=3 * SSx, fill=(6, 9, 17), outline=col, width=max(1, SSx))
+    d.text((cx - tw / 2, cy + 1 * SSx), text, font=font, fill=col)
+
+
 def main() -> None:
     fonts = {
-        "title": font("ariblk.ttf", 26),
-        "sub": font("consolab.ttf", 10),
-        "mono": font("consola.ttf", 10),
-        "hdr": font("consolab.ttf", 8),
-        "badge": font("consolab.ttf", 8),
-        "chip": font("arialbd.ttf", 10),
+        "brand": fnt("ariblk.ttf", 13),
+        "brand2": fnt("arialbd.ttf", 13),
+        "legend": fnt("consolab.ttf", 8),
+        "pivot": fnt("consolab.ttf", 8),
+        "foot": fnt("consola.ttf", 9),
     }
     bg = bg_gradient()
     frames = [build_frame(f, bg, fonts) for f in range(FRAMES)]
-
-    # shared adaptive palette across all frames -> smaller, consistent GIF
-    pal_src = frames[0].convert("RGB").quantize(colors=128, method=Image.MEDIANCUT, dither=Image.NONE)
-    quant = [fr.convert("RGB").quantize(palette=pal_src, dither=Image.NONE) for fr in frames]
-
+    pal = frames[0].convert("RGB").quantize(colors=128, method=Image.MEDIANCUT, dither=Image.NONE)
+    quant = [fr.convert("RGB").quantize(palette=pal, dither=Image.NONE) for fr in frames]
     OUT.parent.mkdir(parents=True, exist_ok=True)
     quant[0].save(OUT, save_all=True, append_images=quant[1:], duration=DURATION_MS,
                   loop=0, optimize=True, disposal=2)
-    size_kb = OUT.stat().st_size / 1024
-    print(f"Wrote {OUT} ({len(frames)} frames, {size_kb:.0f} KB)")
+    print(f"Wrote {OUT} ({len(frames)} frames, {OUT.stat().st_size / 1024:.0f} KB)")
 
 
 if __name__ == "__main__":
