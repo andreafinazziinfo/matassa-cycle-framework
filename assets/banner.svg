@@ -1,99 +1,88 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 220" width="100%" height="100%">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 850 280" width="100%" height="100%">
   <defs>
     <linearGradient id="bg-grad" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" stop-color="#070a13"/>
-      <stop offset="50%" stop-color="#0b0f19"/>
+      <stop offset="50%" stop-color="#0b1122"/>
       <stop offset="100%" stop-color="#070a13"/>
     </linearGradient>
     <linearGradient id="wave-grad" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.15"/>
-      <stop offset="50%" stop-color="#09F1B8" stop-opacity="0.65"/>
-      <stop offset="100%" stop-color="#8B5CF6" stop-opacity="0.15"/>
+      <stop offset="0%" stop-color="#8B5CF6" stop-opacity="0.1"/>
+      <stop offset="50%" stop-color="#09F1B8" stop-opacity="0.6"/>
+      <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0.1"/>
     </linearGradient>
     <filter id="glow-teal" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="4" result="blur"/>
+      <feGaussianBlur stdDeviation="5" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
     <filter id="glow-soft" x="-20%" y="-20%" width="140%" height="140%">
-      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feGaussianBlur stdDeviation="3" result="blur"/>
       <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
     </filter>
-    <pattern id="grid" width="28" height="28" patternUnits="userSpaceOnUse">
-      <path d="M 28 0 L 0 0 0 28" fill="none" stroke="#1e293b" stroke-width="0.6" stroke-opacity="0.55"/>
+    <pattern id="grid" width="30" height="30" patternUnits="userSpaceOnUse">
+      <path d="M 30 0 L 0 0 0 30" fill="none" stroke="#1e293b" stroke-width="0.7" stroke-opacity="0.6"/>
     </pattern>
   </defs>
   <style><![CDATA[
-    .title { font-family: system-ui, sans-serif; font-weight: 800; fill: #fff; letter-spacing: 3px; }
-    .sub { font-family: 'Fira Code', monospace; font-size: 11px; fill: #09F1B8; letter-spacing: 1.5px; }
-    .mono { font-family: 'Fira Code', monospace; font-size: 10px; fill: #94a3b8; }
-    .mint { fill: #09F1B8; }
-    .violet { fill: #8B5CF6; }
-    .dim { fill: #64748b; }
-    @keyframes pulse-cyan {
-      0%, 100% { fill: #09F1B8; }
-      50% { fill: #0d9488; }
-    }
-    .status-dot { animation: pulse-cyan 2s infinite; }
-    @keyframes draw-wave {
-      0% { stroke-dashoffset: 1600; }
-      100% { stroke-dashoffset: 0; }
-    }
-    .animated-wave {
-      stroke-dasharray: 1600;
-      stroke-dashoffset: 1600;
-      animation: draw-wave 7s linear infinite;
-    }
-    @keyframes cursor-blink {
-      0%, 100% { opacity: 0; }
-      50% { opacity: 1; }
-    }
-    .cursor { animation: cursor-blink 1.1s step-end infinite; fill: #09F1B8; }
+    .title-name { font-family: system-ui, sans-serif; font-weight: 800; fill: #fff; letter-spacing: 3px; }
+    .subtitle-spec { font-family: 'Fira Code', monospace; font-weight: 600; fill: #09F1B8; letter-spacing: 2px; font-size: 11.5px; }
+    .terminal-text { font-family: 'Fira Code', monospace; font-size: 10.5px; fill: #94a3b8; }
+    .terminal-header { font-family: 'Fira Code', monospace; font-size: 9.5px; font-weight: bold; fill: #475569; }
+    .cyan-txt { fill: #09F1B8; } .blue-txt { fill: #0ea5e9; } .purple-txt { fill: #8B5CF6; } .bright-txt { fill: #fff; }
+    @keyframes pulse-cyan { 0%, 100% { fill: #09F1B8; } 50% { fill: #0d9488; } }
+    .status-dot-cyan { animation: pulse-cyan 2s infinite; }
+    @keyframes cursor-blink { 0%, 100% { opacity: 0; } 50% { opacity: 1; } }
+    .term-cursor { animation: cursor-blink 1.2s step-end infinite; fill: #09F1B8; }
+    @keyframes draw-wave { 0% { stroke-dashoffset: 2000; } 100% { stroke-dashoffset: 0; } }
+    .animated-wave { stroke-dasharray: 2000; stroke-dashoffset: 2000; animation: draw-wave 8s linear infinite; }
   ]]></style>
 
-  <rect width="848" height="218" x="1" y="1" rx="10" fill="url(#bg-grad)" stroke="#1e293b" stroke-width="1.5"/>
-  <rect width="848" height="218" x="1" y="1" rx="10" fill="url(#grid)"/>
+  <rect width="848" height="278" x="1" y="1" rx="10" fill="url(#bg-grad)" stroke="#1e293b" stroke-width="1.5"/>
+  <rect width="848" height="278" x="1" y="1" rx="10" fill="url(#grid)"/>
 
-  <path d="M -40 150 C 120 90, 220 200, 380 130 C 540 70, 640 190, 820 120 C 920 80, 980 150, 1020 150"
-        fill="none" stroke="url(#wave-grad)" stroke-width="2.5" filter="url(#glow-soft)"/>
-  <path class="animated-wave" d="M -40 150 C 120 90, 220 200, 380 130 C 540 70, 640 190, 820 120 C 920 80, 980 150, 1020 150"
-        fill="none" stroke="#09F1B8" stroke-width="1.2" opacity="0.75"/>
+  <path d="M -50 180 C 100 120, 200 240, 350 170 C 500 100, 600 220, 750 160 C 850 120, 900 180, 950 180" fill="none" stroke="url(#wave-grad)" stroke-width="3" filter="url(#glow-soft)"/>
+  <path id="wave-anim" class="animated-wave" d="M -50 180 C 100 120, 200 240, 350 170 C 500 100, 600 220, 750 160 C 850 120, 900 180, 950 180" fill="none" stroke="#0ea5e9" stroke-width="1.5" opacity="0.8">
+    <animate attributeName="stroke-dashoffset" values="2000;0;2000" dur="8s" repeatCount="indefinite"/>
+  </path>
 
-  <!-- Terminal -->
-  <g transform="translate(32, 38)">
-    <rect width="340" height="145" rx="8" fill="#04060d" fill-opacity="0.88" stroke="#1e293b" stroke-width="1.2"/>
-    <circle cx="18" cy="16" r="4" fill="#ef4444" opacity="0.85"/>
-    <circle cx="32" cy="16" r="4" fill="#eab308" opacity="0.85"/>
-    <circle cx="46" cy="16" r="4" fill="#22c55e" opacity="0.85"/>
-    <text x="68" y="19" class="mono" font-size="9" fill="#475569">MATASSA://REFERENCE_TABLES</text>
-    <path d="M 0 28 L 340 28" stroke="#1e293b" stroke-width="1"/>
-    <text x="16" y="48" class="mono">[<tspan class="mint">OK</tspan>] Loaded profile M (1.0x) · 6 markets</text>
-    <text x="16" y="66" class="mono">[<tspan class="mint">OK</tspan>] T-scale T ’ T+10 harmonics mapped</text>
-    <text x="16" y="84" class="mono">[<tspan class="violet">INF</tspan>] Crypto 100% · Stock US 19.3% · EU 25.3%</text>
-    <text x="16" y="102" class="mono">[<tspan class="violet">INF</tspan>] Pine source: <tspan fill="#64748b">private</tspan> · TV: invite-only</text>
-    <text x="16" y="120" class="mono">[<tspan class="mint">SYS</tspan>] Public layer: CSV + XLSX reference</text>
-    <text x="16" y="138" class="mono"><tspan class="violet">matassa@cycle</tspan>:<tspan class="mint">~/tables</tspan>$ <tspan fill="#e2e8f0">open m-1-0x.csv</tspan><tspan class="cursor">ˆ</tspan></text>
+  <g transform="translate(35, 45)">
+    <rect width="360" height="190" rx="8" fill="#04060d" fill-opacity="0.85" stroke="#1e293b" stroke-width="1.2"/>
+    <circle cx="20" cy="18" r="4.5" fill="#ef4444" opacity="0.85"/>
+    <circle cx="34" cy="18" r="4.5" fill="#eab308" opacity="0.85"/>
+    <circle cx="48" cy="18" r="4.5" fill="#22c55e" opacity="0.85"/>
+    <text x="75" y="21" class="terminal-header">MATASSA://REFERENCE_TABLES</text>
+    <path d="M 0 32 L 360 32" stroke="#1e293b" stroke-width="1"/>
+    <g transform="translate(18, 38)">
+      <text x="0" y="20" class="terminal-text"><tspan class="purple-txt">matassa@cycle</tspan>:<tspan class="blue-txt">~/tables</tspan>$ load m-1-0x.csv</text>
+      <text x="0" y="42" class="terminal-text">[<tspan class="blue-txt">OK</tspan>] Profile M (1.0x) - 6 markets</text>
+      <text x="0" y="62" class="terminal-text">[<tspan class="blue-txt">OK</tspan>] T-scale T .. T+10 harmonics</text>
+      <text x="0" y="82" class="terminal-text">[<tspan class="purple-txt">INF</tspan>] Crypto 100% | Stock US 19.3%</text>
+      <text x="0" y="102" class="terminal-text">[<tspan class="purple-txt">INF</tspan>] Pine: private | TV: invite-only</text>
+      <text x="0" y="122" class="terminal-text">[<tspan class="blue-txt">SYS</tspan>] Public layer: CSV + XLSX</text>
+      <text x="0" y="142" class="terminal-text"><tspan class="purple-txt">matassa@cycle</tspan>:<tspan class="blue-txt">~/tables</tspan>$ <tspan class="bright-txt">status</tspan><tspan class="term-cursor">&#9608;</tspan></text>
+    </g>
   </g>
 
-  <!-- Headline -->
-  <g transform="translate(400, 42)">
+  <g transform="translate(435, 45)">
     <g transform="translate(200, 0)">
-      <rect width="118" height="22" rx="11" fill="#0b1716" stroke="#09F1B8" stroke-opacity="0.35" stroke-width="1"/>
-      <circle cx="14" cy="11" r="4" class="status-dot"/>
-      <text x="26" y="15" font-family="monospace" font-size="8.5" fill="#09F1B8" font-weight="bold">REFERENCE LIVE</text>
+      <rect width="140" height="24" rx="12" fill="#0b1716" stroke="#09F1B8" stroke-opacity="0.3" stroke-width="1"/>
+      <circle cx="16" cy="12" r="4.5" class="status-dot-cyan">
+        <animate attributeName="opacity" values="1;0.35;1" dur="2s" repeatCount="indefinite"/>
+      </circle>
+      <text x="28" y="16" font-family="monospace" font-size="9" fill="#09F1B8" font-weight="bold">REFERENCE LIVE</text>
     </g>
-    <text x="0" y="48" class="title" font-size="28" filter="url(#glow-teal)">MATASSA CYCLE</text>
-    <text x="0" y="76" class="title" font-size="28" filter="url(#glow-teal)">FRAMEWORK</text>
-    <text x="0" y="98" class="sub">T-SCALE DURATIONS · CROSS-MARKET CALIBRATION</text>
-    <g transform="translate(0, 112)">
-      <rect width="108" height="26" rx="4" fill="#070c14" stroke="#1e293b" stroke-width="0.8"/>
-      <text x="10" y="17" class="mono" font-size="9"><tspan class="mint">MIN</tspan> <tspan class="dim">·</tspan> <tspan class="violet">M</tspan> <tspan class="dim">·</tspan> <tspan class="mint">MAX</tspan></text>
-      <g transform="translate(118, 0)">
-        <rect width="108" height="26" rx="4" fill="#070c14" stroke="#1e293b" stroke-width="0.8"/>
-        <text x="10" y="17" class="mono" font-size="9">T · T+1 · T+2 · T+3 &</text>
+    <text x="0" y="52" class="title-name" font-size="30" filter="url(#glow-teal)">MATASSA CYCLE</text>
+    <text x="0" y="82" class="title-name" font-size="30" filter="url(#glow-teal)">FRAMEWORK</text>
+    <text x="0" y="108" class="subtitle-spec">T-SCALE DURATIONS &amp; CALIBRATION</text>
+    <g transform="translate(0, 120)">
+      <rect width="115" height="32" rx="4" fill="#070c14" fill-opacity="0.8" stroke="#1e293b" stroke-width="0.8"/>
+      <text x="12" y="20" font-family="system-ui,sans-serif" font-size="11" font-weight="900" fill="#09F1B8">MIN - M - MAX</text>
+      <g transform="translate(125, 0)">
+        <rect width="115" height="32" rx="4" fill="#070c14" fill-opacity="0.8" stroke="#1e293b" stroke-width="0.8"/>
+        <text x="12" y="20" font-family="system-ui,sans-serif" font-size="11" font-weight="900" fill="#8B5CF6">T .. T+10</text>
       </g>
-      <g transform="translate(236, 0)">
-        <rect width="118" height="26" rx="4" fill="#070c14" stroke="#1e293b" stroke-width="0.8"/>
-        <text x="10" y="17" class="mono" font-size="9"><tspan class="violet">@AnDr3HA</tspan> TV</text>
+      <g transform="translate(250, 0)">
+        <rect width="110" height="32" rx="4" fill="#070c14" fill-opacity="0.8" stroke="#1e293b" stroke-width="0.8"/>
+        <text x="12" y="20" font-family="system-ui,sans-serif" font-size="11" fill="#94a3b8">@AnDr3HA TV</text>
       </g>
     </g>
   </g>

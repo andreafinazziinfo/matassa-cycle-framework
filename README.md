@@ -1,6 +1,7 @@
 <div align="center">
 
-<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/banner.svg?v=1" width="100%" alt="Matassa Cycle Framework — T-scale reference layer" />
+<!-- GIF animates on GitHub (SVG CSS animations are stripped by GitHub's image proxy) -->
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/banner.gif?v=2" width="100%" alt="Matassa Cycle Framework — animated banner" />
 
 <br>
 
@@ -21,7 +22,7 @@ Full <strong>Matassa Completa</strong> on TradingView is <strong>invite-only</st
 
 </div>
 
-<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=1" width="100%" alt="" />
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=2" width="100%" alt="" />
 
 <br>
 
@@ -56,7 +57,7 @@ flowchart TB
 | **Advanced modules** | Private / screenshots | Pattern · statistics · strategy |
 | **Cycle Lab** | Private product | Execution · terminal · backtest |
 
-<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=1" width="100%" alt="" />
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=2" width="100%" alt="" />
 
 <br>
 
@@ -83,39 +84,35 @@ Markets: **Crypto (100%)** reference · Futures/Forex · Forex · Futures · Sto
 
 → Start with [`reference-tables/m-1-0x.csv`](reference-tables/m-1-0x.csv)
 
-<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=1" width="100%" alt="" />
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=2" width="100%" alt="" />
 
 <br>
 
-## Visual preview
+## Visual preview (TradingView)
 
-Screenshots only — **no Pine source**. Request access: [@AnDr3HA](https://www.tradingview.com/u/AnDr3HA/).
+Screenshots only — **no Pine source**. Full suite: [@AnDr3HA](https://www.tradingview.com/u/AnDr3HA/) (invite-only).
 
-<details>
-  <summary><strong>Matassa Completa</strong> — pivots, centratura, FLD/FEMA, cycle bands</summary>
-  <br>
-  <img src="assets/screenshots/completa-overview.png" width="100%" alt="Matassa Completa" />
-</details>
+### Matassa Completa
+Pivots, centratura, FLD/FEMA, cycle bands, multi-timeframe targets.
 
-<details>
-  <summary><strong>Matassa 3 Cicli</strong> — three cycle layers (+2 / 0 / −2)</summary>
-  <br>
-  <img src="assets/screenshots/three-cycles.png" width="100%" alt="Matassa 3 Cicli" />
-</details>
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/screenshots/completa-overview.png?v=2" width="100%" alt="Matassa Completa" />
 
-<details>
-  <summary><strong>Matassa Statistica</strong> — heatmap, projections, accuracy tables</summary>
-  <br>
-  <img src="assets/screenshots/statistica.png" width="100%" alt="Matassa Statistica" />
-</details>
+### Matassa 3 Cicli
+Three synchronized cycle layers (+2 / 0 / -2) on one chart.
 
-<details>
-  <summary><strong>Matassa Pattern Matching</strong> — KNN / DTW, WFV backtest</summary>
-  <br>
-  <img src="assets/screenshots/pattern-matching.png" width="100%" alt="Matassa Pattern Matching" />
-</details>
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/screenshots/three-cycles.png?v=2" width="100%" alt="Matassa 3 Cicli" />
 
-<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=1" width="100%" alt="" />
+### Matassa Statistica
+Statistical projections, heatmap distribution, accuracy tables.
+
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/screenshots/statistica.png?v=2" width="100%" alt="Matassa Statistica" />
+
+### Matassa Pattern Matching
+Historical shape matching (KNN / DTW), similarity ranking, walk-forward backtest.
+
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/screenshots/pattern-matching.png?v=2" width="100%" alt="Matassa Pattern Matching" />
+
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=2" width="100%" alt="" />
 
 <br>
 
