@@ -1,104 +1,145 @@
-# Matassa Cycle Framework
+<div align="center">
 
-Public reference layer for **cyclical market analysis** built around the Matassa methodology.
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/banner.svg?v=1" width="100%" alt="Matassa Cycle Framework — T-scale reference layer" />
 
-This repository is intentionally **showcase-only**: it shares calibrated reference tables and framework documentation. It does **not** include Pine Script source code, pattern-matching engines, statistical projection modules, or execution logic.
+<br>
 
-> **Full indicator suite:** [Matassa Completa](https://www.tradingview.com/u/AnDr3HA/) on TradingView ([@AnDr3HA](https://www.tradingview.com/u/AnDr3HA/)) — **invite-only**.  
-> **Execution & terminal:** [Cycle Lab](https://andreafinazzi.com) — private product stack.
+<p>
+  <a href="https://www.tradingview.com/u/AnDr3HA/"><img src="https://img.shields.io/badge/TradingView-@AnDr3HA-09F1B8?style=flat-square&logo=tradingview&logoColor=black" alt="TradingView" /></a>
+  &nbsp;
+  <a href="https://github.com/andreafinazziinfo"><img src="https://img.shields.io/badge/GitHub-andreafinazziinfo-8B5CF6?style=flat-square&logo=github&logoColor=white" alt="GitHub" /></a>
+  &nbsp;
+  <a href="https://andreafinazzi.com"><img src="https://img.shields.io/badge/Web-andreafinazzi.com-0b0f19?style=flat-square&logo=google-chrome&logoColor=09F1B8" alt="Website" /></a>
+  &nbsp;
+  <img src="https://img.shields.io/badge/Layer-Public_Reference-0b0f19?style=flat-square&logo=bookstack&logoColor=09F1B8" alt="Public reference" />
+  &nbsp;
+  <img src="https://img.shields.io/badge/Pine_Source-Private-0b0f19?style=flat-square&logo=lock&logoColor=8B5CF6" alt="Private Pine" />
+</p>
 
----
+<p><strong>Public reference layer</strong> for cyclical market analysis — optimized T-scale tables by market and length profile.<br>
+Full <strong>Matassa Completa</strong> on TradingView is <strong>invite-only</strong>. No indicator source code in this repo.</p>
 
-## What is here
+</div>
+
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=1" width="100%" alt="" />
+
+<br>
+
+## Architecture
+
+```mermaid
+flowchart TB
+  subgraph public["Public — this repo"]
+    T["reference-tables/<br/>T-scale CSV + XLSX"]
+    D["docs/"]
+  end
+  subgraph tv["TradingView — invite"]
+    C["Matassa Completa"]
+    P["Pattern Matching"]
+    S["Statistica"]
+  end
+  subgraph private["Private"]
+    E["Model Entry"]
+    L["Cycle Lab Terminal"]
+  end
+  T --> C
+  C --> P
+  C --> S
+  S --> E
+  E --> L
+```
+
+| Layer | Access | Contents |
+|-------|--------|----------|
+| **Reference tables** | Public | MIN → MAX profiles · 6 market calibrations |
+| **Matassa Completa** | [TV invite](https://www.tradingview.com/u/AnDr3HA/) | Pivots · FLD/FEMA · swings · multi-cycle |
+| **Advanced modules** | Private / screenshots | Pattern · statistics · strategy |
+| **Cycle Lab** | Private product | Execution · terminal · backtest |
+
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=1" width="100%" alt="" />
+
+<br>
+
+## What's included
 
 | Asset | Description |
 |-------|-------------|
-| [`reference-tables/`](reference-tables/) | Optimized T-scale cycle duration tables by market and length profile |
-| [`docs/framework-overview.md`](docs/framework-overview.md) | High-level architecture (public vs private layers) |
-| [`docs/using-reference-tables.md`](docs/using-reference-tables.md) | How to read and apply the tables |
-| [`assets/screenshots/`](assets/screenshots/) | Visual previews of private modules (images only, no source) |
+| [`reference-tables/`](reference-tables/) | T-scale duration tables (5 profiles × 6 markets) |
+| [`docs/framework-overview.md`](docs/framework-overview.md) | Stack overview |
+| [`docs/using-reference-tables.md`](docs/using-reference-tables.md) | How to read the tables |
+| [`assets/screenshots/`](assets/screenshots/) | TradingView previews (images only) |
 
----
+### Length profiles
 
-## Reference tables (low-IP layer)
-
-Cycle durations are expressed on the **T-scale** (T = weekly nominal anchor, T+n = longer harmonics).  
-Five **length profiles** cover different volatility regimes:
-
-| Profile | Factor | Use case |
+| Profile | Factor | Use when |
 |---------|--------|----------|
-| MIN | 0.6875× | Compressed / fast markets |
-| C | 0.75× | Short cycle bias |
-| M | 1.0× | Neutral baseline |
-| L | 1.25× | Extended cycles |
-| MAX | 1.4375× | Slow / stretched cycles |
+| `min-0-6875x` | 0.6875× | Cycles compress / high volatility |
+| `c-0-75x` | 0.75× | Slightly short bias |
+| **`m-1-0x`** | **1.0×** | **Default baseline** |
+| `l-1-25x` | 1.25× | Extended harmonics |
+| `max-1-4375x` | 1.4375× | Slow / stretched regimes |
 
-Markets are calibrated relative to Crypto (100% reference): Futures/Forex, Forex, Futures, US Stocks, EU Stocks.
+Markets: **Crypto (100%)** reference · Futures/Forex · Forex · Futures · Stock US · Stock EU.
 
-Raw Hurst-style nominal lengths exist in public literature; **these tables apply cross-market calibration factors** tuned for live multi-asset work. See [`reference-tables/README.md`](reference-tables/README.md).
+→ Start with [`reference-tables/m-1-0x.csv`](reference-tables/m-1-0x.csv)
 
----
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=1" width="100%" alt="" />
 
-## Visual preview (TradingView — invite-only)
+<br>
 
-Screenshots only. **No source code** in this repository.
+## Visual preview
 
-### Matassa Completa
-Full overlay: pivots, centratura, FLD/FEMA, cycle bands, multi-timeframe targets.
+Screenshots only — **no Pine source**. Request access: [@AnDr3HA](https://www.tradingview.com/u/AnDr3HA/).
 
-<img src="assets/screenshots/completa-overview.png" width="100%" alt="Matassa Completa — BTC 1H with FLD and cycle overlays" />
+<details>
+  <summary><strong>Matassa Completa</strong> — pivots, centratura, FLD/FEMA, cycle bands</summary>
+  <br>
+  <img src="assets/screenshots/completa-overview.png" width="100%" alt="Matassa Completa" />
+</details>
 
-### Matassa 3 Cicli
-Three synchronized cycle layers (+2 / 0 / −2) on a single chart.
+<details>
+  <summary><strong>Matassa 3 Cicli</strong> — three cycle layers (+2 / 0 / −2)</summary>
+  <br>
+  <img src="assets/screenshots/three-cycles.png" width="100%" alt="Matassa 3 Cicli" />
+</details>
 
-<img src="assets/screenshots/three-cycles.png" width="100%" alt="Matassa 3 Cicli — multi-cycle overlay" />
+<details>
+  <summary><strong>Matassa Statistica</strong> — heatmap, projections, accuracy tables</summary>
+  <br>
+  <img src="assets/screenshots/statistica.png" width="100%" alt="Matassa Statistica" />
+</details>
 
-### Matassa Statistica
-Statistical projections, heatmap distribution, accuracy tables, cycle constraints.
+<details>
+  <summary><strong>Matassa Pattern Matching</strong> — KNN / DTW, WFV backtest</summary>
+  <br>
+  <img src="assets/screenshots/pattern-matching.png" width="100%" alt="Matassa Pattern Matching" />
+</details>
 
-<img src="assets/screenshots/statistica.png" width="100%" alt="Matassa Statistica — heatmap and projection tables" />
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/divider.svg?v=1" width="100%" alt="" />
 
-### Matassa Pattern Matching
-Historical shape matching (KNN / DTW), similarity ranking, walk-forward backtest panel.
-
-<img src="assets/screenshots/pattern-matching.png" width="100%" alt="Matassa Pattern Matching — KNN matching and WFV backtest" />
-
-> Request full indicator access: [@AnDr3HA on TradingView](https://www.tradingview.com/u/AnDr3HA/)
-
----
-
-## Private stack (not in this repo)
-
-The following remain **closed source** — screenshots may appear under `assets/screenshots/` for illustration only:
-
-- **Matassa Completa** — full overlay indicator (TradingView, invite-only)
-- **Matassa Pattern Matching** — cycle shape matching & forward projections
-- **Matassa Statistica** — statistical cycle projection engine
-- **Matassa Model Entry** — strategy / entry model
-- **Cycle Lab Terminal** — FastAPI + Vue execution environment
-
----
+<br>
 
 ## Quick start
 
-1. Open [`reference-tables/m-1-0x.csv`](reference-tables/m-1-0x.csv) for the neutral baseline table.
-2. Pick your market column (e.g. `CRYPTO (100%)`, `STOCK USA (19.3%)`).
-3. Read [`docs/using-reference-tables.md`](docs/using-reference-tables.md) for interpretation.
-
----
+1. Open [`reference-tables/m-1-0x.csv`](reference-tables/m-1-0x.csv).
+2. Pick your market column (e.g. `CRYPTO (100%)`).
+3. Read [`docs/using-reference-tables.md`](docs/using-reference-tables.md).
 
 ## Request access
 
-- **TradingView (Matassa Completa):** profile [@AnDr3HA](https://www.tradingview.com/u/AnDr3HA/) — request invite via [andreafinazzi.com](https://andreafinazzi.com) or [email](mailto:andrea.finazzi.info@gmail.com)
-- **Cycle Lab terminal:** product waitlist via website
-
----
+- **TradingView:** [@AnDr3HA](https://www.tradingview.com/u/AnDr3HA/) — [andreafinazzi.com](https://andreafinazzi.com) · [email](mailto:andrea.finazzi.info@gmail.com)
+- **Cycle Lab terminal:** via website
 
 ## License
 
-Reference tables and documentation: see [LICENSE](LICENSE).  
-Tables may be used for **personal research and education**. Commercial redistribution or repackaging as a competing product is not permitted without written permission.
+Reference tables: [LICENSE](LICENSE) — personal / educational use. No commercial redistribution without permission.
 
----
+<br>
 
-**Andrea Finazzi** — Quantitative Architect · [GitHub](https://github.com/andreafinazziinfo) · [Website](https://andreafinazzi.com)
+<div align="center">
+
+**Andrea Finazzi** — Quantitative Architect
+
+[Profile](https://github.com/andreafinazziinfo) · [matassa-cycle-framework](https://github.com/andreafinazziinfo/matassa-cycle-framework) · [claude-statusline-pro](https://github.com/andreafinazziinfo/claude-statusline-pro)
+
+</div>
