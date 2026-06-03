@@ -27,7 +27,8 @@ DURATION_MS = 200
 
 PERIOD = 20.0
 
-OUT = Path(__file__).resolve().parents[1] / "assets" / "banner.gif"
+ASSETS = Path(__file__).resolve().parents[1] / "assets"
+OUT = ASSETS / "matassa-banner.gif"  # unique name — GitHub ignores ?v= on gif cache
 FONTS = Path("C:/Windows/Fonts")
 
 BG_TOP = (8, 11, 21)
@@ -474,7 +475,11 @@ def main() -> None:
         optimize=True,
         disposal=2,
     )
+    # Legacy path: some links may still point here
+    legacy = ASSETS / "banner.gif"
+    legacy.write_bytes(OUT.read_bytes())
     print(f"Wrote {OUT} ({len(frames)} frames, {OUT.stat().st_size / 1024:.0f} KB)")
+    print(f"Synced {legacy}")
 
 
 if __name__ == "__main__":

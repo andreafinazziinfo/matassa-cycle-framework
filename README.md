@@ -1,7 +1,7 @@
 <div align="center">
 
-<!-- GIF animates on GitHub (SVG CSS animations are stripped by GitHub's image proxy) -->
-<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/banner.gif?v=9" width="100%" alt="Matassa Cycle Framework — white title with cyan stars, chart, white projection and T-scale table" />
+<!-- GIF: use pinned commit + unique filename — GitHub/camo ignores ?v= query cache bust -->
+<img src="https://raw.githubusercontent.com/andreafinazziinfo/matassa-cycle-framework/main/assets/matassa-banner.gif" width="100%" alt="Matassa Cycle Framework — white title with cyan stars, chart, white projection and T-scale table" />
 
 <br>
 
