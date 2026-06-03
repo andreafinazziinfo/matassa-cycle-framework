@@ -1,10 +1,7 @@
-"""Generate assets/banner.gif — Matassa-style chart that draws itself.
+"""Generate two README banners: title (hero) + chart (animation).
 
-- Large white intro title with cyan star sparkles, then persistent top title
-- One candle every few frames (slow)
-- FLD in bright cyan
-- Projection zone: dashed lines only (no hollow candles)
-- T-scale reference table panel (like TradingView screenshots)
+- matassa-banner-title.gif — white title, stars, math decor (no chart)
+- matassa-banner-chart.gif — candles, FLD, projection, table (no title overlap)
 """
 from __future__ import annotations
 
@@ -13,23 +10,25 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-W, H = 1280, 500
+W = 1280
+H_TITLE = 156
+H_CHART = 440
 SS = 2
 
 N = 32
 PROJC = 10
-TITLE_INTRO = 14
+TITLE_FRAMES = 28
 CANDLE_FRAMES = 4
 PROJ_FRAMES = 18
 HOLD = 14
-FRAMES = TITLE_INTRO + N * CANDLE_FRAMES + PROJ_FRAMES + HOLD
+CHART_FRAMES = N * CANDLE_FRAMES + PROJ_FRAMES + HOLD
 DURATION_MS = 200
 
 PERIOD = 20.0
 
 ASSETS = Path(__file__).resolve().parents[1] / "assets"
-OUT = ASSETS / "matassa-banner.gif"
-OUT_CACHE_BUST = ASSETS / "matassa-banner-v3.gif"  # bump filename when GitHub caches old gif
+OUT_TITLE = ASSETS / "matassa-banner-title.gif"
+OUT_CHART = ASSETS / "matassa-banner-chart.gif"
 FONTS = Path("C:/Windows/Fonts")
 
 BG_TOP = (8, 11, 21)
@@ -48,7 +47,7 @@ TABLE_ROW = (11, 17, 32)
 TABLE_ALT = (14, 21, 38)
 
 PAD = 16
-TOPBAR = 64
+CHART_LEGEND = 34
 BOTBAR = 26
 TABLE_W = 272
 PROJ_FRAC = 0.22  # fraction of chart width for projection zone
@@ -110,15 +109,30 @@ def ohlc(i: int):
     return o, c, hi, lo
 
 
-def bg_gradient() -> Image.Image:
-    img = Image.new("RGB", (W * SS, H * SS), BG_TOP)
+def bg_gradient(height: int) -> Image.Image:
+    img = Image.new("RGB", (W * SS, height * SS), BG_TOP)
     px = img.load()
-    for y in range(H * SS):
-        t = y / (H * SS)
+    for y in range(height * SS):
+        t = y / (height * SS)
         col = lerp(BG_TOP, BG_BOT, math.sin(t * math.pi) * 0.85)
         for x in range(W * SS):
             px[x, y] = col
     return img
+
+
+def _save_gif(frames: list[Image.Image], durations: list[int], path: Path) -> None:
+    pal = frames[-1].convert("RGB").quantize(colors=160, method=Image.MEDIANCUT, dither=Image.NONE)
+    quant = [fr.convert("RGB").quantize(palette=pal, dither=Image.NONE) for fr in frames]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    quant[0].save(
+        path,
+        save_all=True,
+        append_images=quant[1:],
+        duration=durations,
+        loop=0,
+        optimize=True,
+        disposal=2,
+    )
 
 
 def dashed(d, pts, fill, width, dash=5, gap=4):
@@ -276,39 +290,55 @@ def _pivot_centers():
     return out
 
 
-def _intro_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
+def build_title_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
+    """Hero banner only — title, stars, formulas (no chart)."""
     img = bg.copy()
     d = ImageDraw.Draw(img)
-    d.rectangle([0, 0, W * SS, H * SS], fill=(5, 8, 16))
-    _math_decor(d, (40 * SS, 80 * SS, W * SS - 40 * SS, H * SS - 80 * SS), f, fonts["math"])
+    d.rectangle([0, 0, W * SS, H_TITLE * SS], fill=(5, 8, 16))
+    _math_decor(d, (24 * SS, 12 * SS, W * SS - 24 * SS, H_TITLE * SS - 12 * SS), f, fonts["math"])
     line1 = "MATASSA"
     line2 = "CYCLE FRAMEWORK"
     f1, f2 = fonts["intro_l1"], fonts["intro_l2"]
     w1 = int(d.textlength(line1, font=f1))
     w2 = int(d.textlength(line2, font=f2))
     cx = W * SS // 2
-    cy = H * SS // 2 - 24 * SS
-    img = _white_title(img, (cx - w1 // 2, cy - 44 * SS), line1, f1, f)
-    img = _white_title(img, (cx - w2 // 2, cy + 8 * SS), line2, f2, f + 3)
+    cy = H_TITLE * SS // 2 - 18 * SS
+    img = _white_title(img, (cx - w1 // 2, cy - 40 * SS), line1, f1, f)
+    img = _white_title(img, (cx - w2 // 2, cy + 6 * SS), line2, f2, f + 3)
     d = ImageDraw.Draw(img)
     sub = "T-scale reference · cyclical analysis"
     sw = int(d.textlength(sub, font=fonts["intro_sub"]))
-    d.text((cx - sw // 2, cy + 62 * SS), sub, font=fonts["intro_sub"], fill=TXT)
-    _cyan_stars(d, (cx - w1 // 2 - 30 * SS, cy - 60 * SS, cx + w1 // 2 + 30 * SS, cy + 80 * SS), f + 5)
-    return img.resize((W, H), Image.LANCZOS)
+    d.text((cx - sw // 2, cy + 54 * SS), sub, font=fonts["intro_sub"], fill=TXT)
+    _cyan_stars(
+        d,
+        (cx - w1 // 2 - 36 * SS, cy - 52 * SS, cx + w1 // 2 + 36 * SS, cy + 72 * SS),
+        f + 5,
+    )
+    return img.resize((W, H_TITLE), Image.LANCZOS)
 
 
-def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
-    if f < TITLE_INTRO:
-        return _intro_frame(f, bg, fonts)
+def _draw_legend_strip(d, table_x0: float, fonts: dict) -> None:
+    d.rectangle([0, 0, W * SS, CHART_LEGEND * SS], fill=(4, 7, 14))
+    d.line([(0, CHART_LEGEND * SS), (W * SS, CHART_LEGEND * SS)], fill=(*MINT, 90), width=SS)
+    legend = [("CICLO", MINT), ("FLD", CYAN), ("PIVOT", UP), ("PROIEZ.", WHITE)]
+    lx = table_x0 - 12 * SS
+    for label, col in reversed(legend):
+        tw = int(d.textlength(label, font=fonts["legend"]))
+        lx -= tw
+        d.text((lx, 10 * SS), label, font=fonts["legend"], fill=col)
+        lx -= 8 * SS
+        d.ellipse([lx - 9 * SS, 12 * SS, lx - 2 * SS, 19 * SS], fill=col)
+        lx -= 16 * SS
 
-    cf = f - TITLE_INTRO
+
+def build_chart_frame(cf: int, bg: Image.Image, fonts: dict) -> Image.Image:
+    """Chart banner — candles, indicators, table (no main title)."""
     img = bg.copy()
     d = ImageDraw.Draw(img)
 
     pad = PAD * SS
-    top = (TOPBAR + 2) * SS
-    bot = (H - BOTBAR - 2) * SS
+    top = (CHART_LEGEND + 4) * SS
+    bot = (H_CHART - BOTBAR - 4) * SS
     base_y = (top + bot) // 2
     y_scale = 58 * SS
     table_x0 = (W - TABLE_W - 6) * SS
@@ -332,8 +362,6 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
         revealed = N
         proj_t = min(1.0, (cf - N * CANDLE_FRAMES) / PROJ_FRAMES)
     proj_revealed = int(proj_t * PROJC)
-
-    _math_decor(d, (pad, top, chart_x1, bot), cf, fonts["math"])
 
     # grid
     for gx in range(0, int(split_x), 28 * SS):
@@ -440,7 +468,6 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
             else:
                 _target(d, x, y, "T+1 L", UP, fonts["pivot"])
 
-    # reference table (right panel)
     tbl_alpha = min(1.0, revealed / 8)
     _draw_table(
         d,
@@ -449,59 +476,31 @@ def build_frame(f: int, bg: Image.Image, fonts: dict) -> Image.Image:
         tbl_alpha,
     )
 
-    # top bar + title (always visible during chart)
-    bar = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    bd = ImageDraw.Draw(bar)
-    bd.rectangle([0, 0, W * SS, TOPBAR * SS], fill=(4, 7, 14, 235))
-    bd.line([(0, TOPBAR * SS), (W * SS, TOPBAR * SS)], fill=(*MINT, 100), width=SS)
-    img = Image.alpha_composite(img.convert("RGBA"), bar).convert("RGB")
-    img = _white_title(
-        img,
-        (PAD * SS, 12 * SS),
-        "MATASSA CYCLE FRAMEWORK",
-        fonts["title_bar"],
-        f,
-    )
+    _draw_legend_strip(d, table_x0, fonts)
 
-    d = ImageDraw.Draw(img)
-    legend = [("CICLO", MINT), ("FLD", CYAN), ("PIVOT", UP), ("PROIEZ.", WHITE)]
-    lx = table_x0 - 14 * SS
-    for label, col in reversed(legend):
-        tw = int(d.textlength(label, font=fonts["legend"]))
-        lx -= tw
-        d.text((lx, 26 * SS), label, font=fonts["legend"], fill=col)
-        lx -= 8 * SS
-        d.ellipse([lx - 9 * SS, 28 * SS, lx - 2 * SS, 35 * SS], fill=col)
-        lx -= 16 * SS
-
-    bb = Image.new("RGBA", img.size, (0, 0, 0, 0))
-    bbd = ImageDraw.Draw(bb)
-    bbd.rectangle([0, (H - BOTBAR) * SS, W * SS, H * SS], fill=(4, 7, 14, 230))
-    img = Image.alpha_composite(img.convert("RGBA"), bb).convert("RGB")
-    d = ImageDraw.Draw(img)
+    d.rectangle([0, (H_CHART - BOTBAR) * SS, W * SS, H_CHART * SS], fill=(4, 7, 14))
     d.text(
-        (PAD * SS, (H - 20) * SS),
+        (PAD * SS, (H_CHART - 20) * SS),
         "reference-tables/m-1-0x.csv  ·  BTC 1H demo",
         font=fonts["foot"],
         fill=TXT,
     )
     rt = "@AnDr3HA · invite-only"
     d.text(
-        (W * SS - PAD * SS - int(d.textlength(rt, font=fonts["foot"])), (H - 20) * SS),
+        (W * SS - PAD * SS - int(d.textlength(rt, font=fonts["foot"])), (H_CHART - 20) * SS),
         rt,
         font=fonts["foot"],
         fill=DIM,
     )
 
-    return img.resize((W, H), Image.LANCZOS)
+    return img.resize((W, H_CHART), Image.LANCZOS)
 
 
 def main() -> None:
     fonts = {
-        "intro_l1": fnt("ariblk.ttf", 46),
-        "intro_l2": fnt("ariblk.ttf", 30),
-        "intro_sub": fnt("consola.ttf", 14),
-        "title_bar": fnt("ariblk.ttf", 28),
+        "intro_l1": fnt("ariblk.ttf", 42),
+        "intro_l2": fnt("ariblk.ttf", 28),
+        "intro_sub": fnt("consola.ttf", 13),
         "legend": fnt("consolab.ttf", 11),
         "pivot": fnt("consolab.ttf", 11),
         "foot": fnt("consola.ttf", 12),
@@ -511,32 +510,21 @@ def main() -> None:
         "tbl_cell": fnt("consolab.ttf", 13),
         "math": fnt("consola.ttf", 10),
     }
-    bg = bg_gradient()
-    frames = [build_frame(f, bg, fonts) for f in range(FRAMES)]
 
-    pal = frames[-1].convert("RGB").quantize(colors=160, method=Image.MEDIANCUT, dither=Image.NONE)
-    quant = [fr.convert("RGB").quantize(palette=pal, dither=Image.NONE) for fr in frames]
+    title_bg = bg_gradient(H_TITLE)
+    title_frames = [build_title_frame(f, title_bg, fonts) for f in range(TITLE_FRAMES)]
+    title_dur = [200] * TITLE_FRAMES
+    title_dur[-1] = 1200
+    _save_gif(title_frames, title_dur, OUT_TITLE)
 
-    durations = [DURATION_MS] * FRAMES
-    for i in range(TITLE_INTRO):
-        durations[i] = 220
-    durations[-1] = 1600
+    chart_bg = bg_gradient(H_CHART)
+    chart_frames = [build_chart_frame(cf, chart_bg, fonts) for cf in range(CHART_FRAMES)]
+    chart_dur = [DURATION_MS] * CHART_FRAMES
+    chart_dur[-1] = 1600
+    _save_gif(chart_frames, chart_dur, OUT_CHART)
 
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    quant[0].save(
-        OUT,
-        save_all=True,
-        append_images=quant[1:],
-        duration=durations,
-        loop=0,
-        optimize=True,
-        disposal=2,
-    )
-    data = OUT.read_bytes()
-    for path in (ASSETS / "banner.gif", OUT_CACHE_BUST):
-        path.write_bytes(data)
-    print(f"Wrote {OUT} ({len(frames)} frames, {len(data) / 1024:.0f} KB)")
-    print(f"Synced banner.gif + {OUT_CACHE_BUST.name}")
+    print(f"Wrote {OUT_TITLE} ({TITLE_FRAMES} frames, {OUT_TITLE.stat().st_size / 1024:.0f} KB)")
+    print(f"Wrote {OUT_CHART} ({CHART_FRAMES} frames, {OUT_CHART.stat().st_size / 1024:.0f} KB)")
 
 
 if __name__ == "__main__":
